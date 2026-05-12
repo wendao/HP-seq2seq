@@ -148,7 +148,7 @@ class Seq2SeqLSTM(nn.Module):
 # ============ CNN Models ============
 
 class EncoderCNN(nn.Module):
-    """CNN encoder for seq2seq."""
+    """CNN encoder with deeper layers and residual connections."""
 
     def __init__(self, embed_dim: int, hidden_size: int, input_vocab_size: int):
         super().__init__()
@@ -156,71 +156,90 @@ class EncoderCNN(nn.Module):
         self.conv1 = nn.Conv1d(embed_dim, hidden_size, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
         self.conv3 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
+        self.conv5 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
+        self.layer_norm = nn.LayerNorm(hidden_size)
 
-    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-        # x: (batch, seq_len)
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         embedded = self.embedding(x)  # (batch, seq_len, embed_dim)
         x = embedded.transpose(1, 2)  # (batch, embed_dim, seq_len)
 
-        x = torch.relu(self.conv1(x))
-        x = torch.relu(self.conv2(x))
-        x = torch.relu(self.conv3(x))
+        h = torch.relu(self.conv1(x))
+        h = torch.relu(self.conv2(h)) + h  # residual
+        h = torch.relu(self.conv3(h)) + h  # residual
+        h = torch.relu(self.conv4(h)) + h  # residual
+        h = torch.relu(self.conv5(h))
 
-        # Global max pooling over sequence
-        pooled = torch.max(x, dim=2)[0]  # (batch, hidden_size)
-        return pooled
+        # Multiple pooling strategies
+        global_max = torch.max(h, dim=2)[0]  # (batch, hidden_size)
+        global_avg = h.mean(dim=2)  # (batch, hidden_size)
+
+        # Concatenate pooling results
+        pooled = torch.cat([global_max, global_avg], dim=1)  # (batch, 2*hidden_size)
+        return pooled, embedded  # Return embedded for attention
 
 
 class DecoderCNN(nn.Module):
-    """CNN decoder for seq2seq."""
+    """Improved CNN decoder with cross-attention to encoder."""
 
     def __init__(self, embed_dim: int, hidden_size: int, output_vocab_size: int, max_len: int = 20):
         super().__init__()
         self.max_len = max_len
         self.hidden_size = hidden_size
+        self.total_hidden = hidden_size * 2  # combined pooling size
+
         self.embedding = nn.Embedding(output_vocab_size, embed_dim)
+
+        # Cross-attention for encoder-decoder
+        self.cross_attn = nn.MultiheadAttention(embed_dim, 8, batch_first=True)
+        self.cross_norm = nn.LayerNorm(embed_dim)
+
+        # Conv layers with residual
         self.conv1 = nn.Conv1d(embed_dim, hidden_size, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
         self.conv3 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
+
         self.output_proj = nn.Linear(hidden_size, output_vocab_size)
 
     def forward(self, encoder_hidden: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        # encoder_hidden: (batch, hidden_size) - from encoder
-        # target: (batch, target_len)
         batch_size = encoder_hidden.size(0)
         seq_len = target.size(1)
 
-        # Initialize hidden state
-        h = encoder_hidden.unsqueeze(2)  # (batch, hidden_size, 1)
-
-        # Embed target tokens
+        # Embed target
         embedded = self.embedding(target)  # (batch, target_len, embed_dim)
+
+        # Cross-attention with encoder output
+        memory = encoder_hidden.unsqueeze(1).expand(-1, seq_len, -1)  # (batch, target_len, embed_dim)
+        attn_out, _ = self.cross_attn(embedded, memory, memory)
+        embedded = self.cross_norm(embedded + attn_out)  # residual
+
         x = embedded.transpose(1, 2)  # (batch, embed_dim, target_len)
 
-        # Causal convolution: process step by step
-        outputs = []
-        for t in range(seq_len):
-            x_t = x[:, :, t:t+1]  # (batch, embed_dim, 1)
-            h = torch.relu(self.conv1(x_t) + h)
-            h = torch.relu(self.conv2(h) + h)
-            h = torch.relu(self.conv3(h) + h)
-            logits = self.output_proj(h.squeeze(2))  # (batch, vocab_size)
-            outputs.append(logits)
+        h = torch.relu(self.conv1(x))
+        h = torch.relu(self.conv2(h)) + h  # residual
+        h = torch.relu(self.conv3(h)) + h  # residual
+        h = torch.relu(self.conv4(h))
 
-        return torch.stack(outputs, dim=1)  # (batch, target_len, vocab_size)
+        logits = self.output_proj(h.transpose(1, 2))  # (batch, target_len, vocab_size)
+        return logits
 
 
 class Seq2SeqCNN(nn.Module):
-    """CNN-based seq2seq model."""
+    """Improved CNN-based seq2seq model."""
 
     def __init__(self, embed_dim: int, hidden_size: int, input_vocab_size: int, output_vocab_size: int):
         super().__init__()
         self.encoder = EncoderCNN(embed_dim, hidden_size, input_vocab_size)
         self.decoder = DecoderCNN(embed_dim, hidden_size, output_vocab_size)
+        # Project combined encoder output to decoder dimension
+        self.project = nn.Linear(hidden_size * 2, embed_dim)
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-        encoder_hidden = self.encoder(inputs, lengths)
-        logits = self.decoder(encoder_hidden, targets)
+        encoder_hidden, encoder_embed = self.encoder(inputs, lengths)
+        # Project encoder hidden to decoder embedding dimension
+        decoder_init = self.project(encoder_hidden)
+        logits = self.decoder(decoder_init, targets)
         return logits
 
 
