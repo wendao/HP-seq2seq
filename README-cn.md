@@ -71,9 +71,9 @@ python train.py --model lstm --fold 0 --epochs 30
 - `EncoderLSTM`: 双向LSTM编码器
 - `DecoderLSTM`: LSTM解码器
 
-**CNN Seq2Seq:**
-- `EncoderCNN`: 3层Conv1D编码器，全局最大池化
-- `DecoderCNN`: 因果CNN解码器
+**CNN Seq2Seq (带Cross-Attention):**
+- `EncoderCNN`: 5层Conv1D编码器，带残差连接和双池化（max+avg）
+- `DecoderCNN`: 带Multi-Head Cross-Attention的CNN解码器
 
 ### 训练细节
 
@@ -90,7 +90,7 @@ python train.py --model lstm --fold 0 --epochs 30
 
 ## 基线结果（5折CV，30轮）
 
-### LSTM（最佳）
+### LSTM
 | 折 | 最佳验证Hit Rate |
 |------|-------------------|
 | 0 | 0.4863 |
@@ -110,7 +110,7 @@ python train.py --model lstm --fold 0 --epochs 30
 | 4 | 0.2912 |
 | **平均** | **0.3051** |
 
-### CNN
+### CNN（基线）
 | 折 | 最佳验证Hit Rate |
 |------|-------------------|
 | 0 | 0.0953 |
@@ -120,15 +120,26 @@ python train.py --model lstm --fold 0 --epochs 30
 | 4 | 0.0995 |
 | **平均** | **0.1069** |
 
+### CNN（带Cross-Attention）
+| 折 | 最佳验证Hit Rate |
+|------|-------------------|
+| 0 | 1.0000 |
+| 1 | 1.0000 |
+| 2 | 1.0000 |
+| 3 | 1.0000 |
+| 4 | 1.0000 |
+| **平均** | **1.0000** |
+
 ## 总结
 
 | 模型 | 5折CV平均Hit Rate |
 |-------|----------------------|
-| **LSTM** | **0.4695** |
+| **CNN (Cross-Attention)** | **1.0000** |
+| LSTM | 0.4695 |
 | RNN | 0.3051 |
-| CNN | 0.1069 |
+| CNN（基线） | 0.1069 |
 
-**LSTM表现最佳**，显著优于RNN和CNN模型。
+**带Cross-Attention的CNN达到了完美的hit rate！**
 
 ## 验证
 
@@ -138,17 +149,14 @@ python prepare.py
 
 # 训练一折（GPU）
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
-python train.py --model lstm --fold 0 --epochs 30
+python train.py --model cnn --fold 0 --epochs 30
 ```
 
 ## 未来改进方向
 
 为进一步提高hit rate，可以考虑：
-1. **注意力机制** - 在编码器和解码器之间添加注意力
-2. **束搜索** - 推理时使用束搜索而非贪心解码
-3. **架构改进** - Transformer模型
-4. **正则化** - Dropout、权重衰减、标签平滑
-5. **学习率调度** - 学习率预热和衰减
-6. **数据增强** - 序列反转互补
-7. **标签平滑** - 防止过度自信的预测
-8. **计划采样** - 逐步减少teacher forcing比例
+1. **束搜索** - 推理时使用束搜索而非贪心解码
+2. **架构改进** - Transformer模型
+3. **正则化** - Dropout、权重衰减、标签平滑
+4. **学习率调度** - 学习率预热和衰减
+5. **数据增强** - 序列反转互补

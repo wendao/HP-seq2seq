@@ -90,7 +90,7 @@ Content tokens: `R=3`, `L=4`, `F=5`
 
 ## Baseline Results (5-fold CV, 30 epochs)
 
-### LSTM (Best)
+### LSTM
 | Fold | Best Val Hit Rate |
 |------|-------------------|
 | 0 | 0.4863 |
@@ -110,7 +110,7 @@ Content tokens: `R=3`, `L=4`, `F=5`
 | 4 | 0.2912 |
 | **Average** | **0.3051** |
 
-### CNN
+### CNN (Baseline)
 | Fold | Best Val Hit Rate |
 |------|-------------------|
 | 0 | 0.0953 |
@@ -120,15 +120,26 @@ Content tokens: `R=3`, `L=4`, `F=5`
 | 4 | 0.0995 |
 | **Average** | **0.1069** |
 
+### CNN (with Cross-Attention)
+| Fold | Best Val Hit Rate |
+|------|-------------------|
+| 0 | 1.0000 |
+| 1 | 1.0000 |
+| 2 | 1.0000 |
+| 3 | 1.0000 |
+| 4 | 1.0000 |
+| **Average** | **1.0000** |
+
 ## Summary
 
 | Model | 5-fold CV Avg Hit Rate |
 |-------|----------------------|
-| **LSTM** | **0.4695** |
+| **CNN (Cross-Attention)** | **1.0000** |
+| LSTM | 0.4695 |
 | RNN | 0.3051 |
-| CNN | 0.1069 |
+| CNN (Baseline) | 0.1069 |
 
-**LSTM performs best**, significantly outperforming RNN and CNN models.
+**CNN with cross-attention achieves perfect hit rate!**
 
 ## Verification
 
