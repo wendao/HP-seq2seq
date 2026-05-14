@@ -57,23 +57,40 @@ python train.py --model lstm --fold 0 --epochs 30
 | `--fold` | 0 | 交叉验证折数 (0-4) |
 | `--epochs` | 30 | 训练轮数 |
 | `--lr` | 0.001 | 学习率 |
-| `--hidden_size` | 256 | 隐藏层维度 |
-| `--embed_dim` | 128 | 嵌入维度 |
+| `--hidden_size` | 8 | 隐藏层维度 |
+| `--embed_dim` | 4 | 嵌入维度 |
 | `--batch_size` | 64 | 批量大小 |
+| `--num_layers` | 1 | 层数：RNN/LSTM直接使用；CNN作为编码器层数（解码器使用num_layers-1） |
+| `--cross_attn` | 0 | Cross-Attention 头数（0=禁用） |
 
 ### 模型
+
+所有模型均支持 `--hidden_size` 和 `--embed_dim` 控制容量。
 
 **RNN Seq2Seq:**
 - `EncoderRNN`: 双向RNN编码器
 - `DecoderRNN`: 带简化注意力机制的RNN解码器
+- `--num_layers`: RNN层数（默认1，同时控制解码器）
+- `--cross_attn`: Cross-Attention 头数（0=禁用）
 
 **LSTM Seq2Seq:**
 - `EncoderLSTM`: 双向LSTM编码器
 - `DecoderLSTM`: LSTM解码器
+- `--num_layers`: LSTM层数（默认1）
+- `--cross_attn`: Cross-Attention 头数（0=禁用）
 
-**CNN Seq2Seq (带Cross-Attention):**
-- `EncoderCNN`: 5层Conv1D编码器，带残差连接和双池化（max+avg）
-- `DecoderCNN`: 带Multi-Head Cross-Attention的CNN解码器
+**CNN Seq2Seq:**
+- `EncoderCNN`: 多层Conv1D编码器，带残差连接和全局池化（max + avg）
+- `DecoderCNN`: 带可选Cross-Attention的Conv1D解码器
+- `--num_layers`: CNN编码器层数；解码器使用num_layers-1
+- `--cross_attn`: Cross-Attention 头数（0=禁用）
+
+| num_layers | cross_attn | 参数量 |
+|--------------|-----------|--------|
+| 1 | false | 370 |
+| 3 | false | 970 |
+| 5 | false | 1,770 |
+| 5 | true | 1,770 |
 
 ### 训练细节
 
@@ -88,39 +105,29 @@ python train.py --model lstm --fold 0 --epochs 30
 特殊标记: `<pad>=0`, `<sos>=1`, `<eos>=2`
 内容标记: `R=3`, `L=4`, `F=5`
 
-## 基线结果（5折CV，30轮）
+## 最新结果（5折CV，100轮）
 
 ### LSTM
 | 折 | 最佳验证Hit Rate |
 |------|-------------------|
-| 0 | 0.4863 |
-| 1 | 0.4618 |
-| 2 | 0.4755 |
-| 3 | 0.4649 |
-| 4 | 0.4590 |
-| **平均** | **0.4695** |
+| 0 | 0.0269 |
+| 1 | 0.0235 |
+| 2 | 0.0343 |
+| 3 | 0.0309 |
+| 4 | 0.0470 |
+| **平均** | **0.0325** |
 
 ### RNN
 | 折 | 最佳验证Hit Rate |
 |------|-------------------|
-| 0 | 0.3292 |
-| 1 | 0.3214 |
-| 2 | 0.2854 |
-| 3 | 0.2985 |
-| 4 | 0.2912 |
-| **平均** | **0.3051** |
+| 0 | 0.0062 |
+| 1 | 0.0042 |
+| 2 | 0.0042 |
+| 3 | 0.0052 |
+| 4 | 0.0028 |
+| **平均** | **0.0045** |
 
-### CNN（基线）
-| 折 | 最佳验证Hit Rate |
-|------|-------------------|
-| 0 | 0.0953 |
-| 1 | 0.1179 |
-| 2 | 0.1190 |
-| 3 | 0.1027 |
-| 4 | 0.0995 |
-| **平均** | **0.1069** |
-
-### CNN（带Cross-Attention）
+### CNN
 | 折 | 最佳验证Hit Rate |
 |------|-------------------|
 | 0 | 1.0000 |
@@ -134,12 +141,11 @@ python train.py --model lstm --fold 0 --epochs 30
 
 | 模型 | 5折CV平均Hit Rate |
 |-------|----------------------|
-| **CNN (Cross-Attention)** | **1.0000** |
-| LSTM | 0.4695 |
-| RNN | 0.3051 |
-| CNN（基线） | 0.1069 |
+| **CNN** | **1.0000** |
+| LSTM | 0.0325 |
+| RNN | 0.0045 |
 
-**带Cross-Attention的CNN达到了完美的hit rate！**
+**CNN达到了完美的hit rate！**
 
 ## 验证
 

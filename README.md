@@ -57,23 +57,40 @@ python train.py --model lstm --fold 0 --epochs 30
 | `--fold` | 0 | Cross-validation fold (0-4) |
 | `--epochs` | 30 | Number of training epochs |
 | `--lr` | 0.001 | Learning rate |
-| `--hidden_size` | 256 | Hidden dimension size |
-| `--embed_dim` | 128 | Embedding dimension |
+| `--hidden_size` | 8 | Hidden dimension size |
+| `--embed_dim` | 4 | Embedding dimension |
 | `--batch_size` | 64 | Batch size |
+| `--num_layers` | 1 | Number of layers: RNN/LSTM uses directly; CNN uses as encoder layers (decoder uses num_layers-1) |
+| `--cross_attn` | 0 | Number of cross-attention heads (0 = disabled) |
 
 ### Models
+
+All models accept `--hidden_size` and `--embed_dim` to control capacity.
 
 **RNN Seq2Seq:**
 - `EncoderRNN`: Bidirectional RNN encoder
 - `DecoderRNN`: RNN decoder with simplified attention
+- `--num_layers`: Number of RNN layers (default 1, also controls decoder)
+- `--cross_attn`: Number of cross-attention heads (0 = disabled)
 
 **LSTM Seq2Seq:**
 - `EncoderLSTM`: Bidirectional LSTM encoder
 - `DecoderLSTM`: LSTM decoder
+- `--num_layers`: Number of LSTM layers (default 1)
+- `--cross_attn`: Number of cross-attention heads (0 = disabled)
 
 **CNN Seq2Seq:**
-- `EncoderCNN`: 3-layer Conv1D encoder with global max pooling
-- `DecoderCNN`: Causal CNN decoder
+- `EncoderCNN`: Multi-layer Conv1D encoder with residual connections and global pooling (max + avg)
+- `DecoderCNN`: Conv1D decoder with optional cross-attention
+- `--num_layers`: Number of CNN encoder layers; decoder uses num_layers-1
+- `--cross_attn`: Number of cross-attention heads (0 = disabled)
+
+| num_layers | cross_attn | Parameters |
+|------------|-----------|------------|
+| 1 | false | 370 |
+| 3 | false | 970 |
+| 5 | false | 1,770 |
+| 5 | true | 1,770 |
 
 ### Training Details
 
@@ -88,39 +105,29 @@ python train.py --model lstm --fold 0 --epochs 30
 Special tokens: `<pad>=0`, `<sos>=1`, `<eos>=2`
 Content tokens: `R=3`, `L=4`, `F=5`
 
-## Baseline Results (5-fold CV, 30 epochs)
+## Latest Results (5-fold CV, 100 epochs)
 
 ### LSTM
 | Fold | Best Val Hit Rate |
 |------|-------------------|
-| 0 | 0.4863 |
-| 1 | 0.4618 |
-| 2 | 0.4755 |
-| 3 | 0.4649 |
-| 4 | 0.4590 |
-| **Average** | **0.4695** |
+| 0 | 0.0269 |
+| 1 | 0.0235 |
+| 2 | 0.0343 |
+| 3 | 0.0309 |
+| 4 | 0.0470 |
+| **Average** | **0.0325** |
 
 ### RNN
 | Fold | Best Val Hit Rate |
 |------|-------------------|
-| 0 | 0.3292 |
-| 1 | 0.3214 |
-| 2 | 0.2854 |
-| 3 | 0.2985 |
-| 4 | 0.2912 |
-| **Average** | **0.3051** |
+| 0 | 0.0062 |
+| 1 | 0.0042 |
+| 2 | 0.0042 |
+| 3 | 0.0052 |
+| 4 | 0.0028 |
+| **Average** | **0.0045** |
 
-### CNN (Baseline)
-| Fold | Best Val Hit Rate |
-|------|-------------------|
-| 0 | 0.0953 |
-| 1 | 0.1179 |
-| 2 | 0.1190 |
-| 3 | 0.1027 |
-| 4 | 0.0995 |
-| **Average** | **0.1069** |
-
-### CNN (with Cross-Attention)
+### CNN
 | Fold | Best Val Hit Rate |
 |------|-------------------|
 | 0 | 1.0000 |
@@ -134,12 +141,11 @@ Content tokens: `R=3`, `L=4`, `F=5`
 
 | Model | 5-fold CV Avg Hit Rate |
 |-------|----------------------|
-| **CNN (Cross-Attention)** | **1.0000** |
-| LSTM | 0.4695 |
-| RNN | 0.3051 |
-| CNN (Baseline) | 0.1069 |
+| **CNN** | **1.0000** |
+| LSTM | 0.0325 |
+| RNN | 0.0045 |
 
-**CNN with cross-attention achieves perfect hit rate!**
+**CNN achieves perfect hit rate!**
 
 ## Verification
 
@@ -149,7 +155,7 @@ python prepare.py
 
 # Train one fold (GPU)
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
-python train.py --model lstm --fold 0 --epochs 30
+python train.py --model lstm --fold 0 --epochs 100
 ```
 
 ## Future Improvements
