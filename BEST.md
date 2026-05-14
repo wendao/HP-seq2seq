@@ -276,7 +276,7 @@ cc00fb5 Baseline CNN: 0.0939 hit rate on fold 0
 
 ---
 
-## 结论
+## 结论(尚不可靠)
 
 通过在CNN Seq2Seq架构中引入**Cross-Attention机制**，成功将验证集Hit Rate从10.69%提升至100%。关键设计是让decoder能够显式访问encoder的输出序列，通过Multi-Head Attention实现信息流动。
 
