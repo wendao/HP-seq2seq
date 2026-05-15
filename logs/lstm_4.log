@@ -1,0 +1,108 @@
+Using device: cuda
+Loaded 24900 samples
+Input vocab size: 4, Output vocab size: 6
+Fold 4: train=19920, val=4980
+Model: lstm, params=496,774
+Epoch 1/100 | Train Loss: 0.8969, Hit Rate: 0.0000 | Val Loss: 0.7370, Hit Rate (TF): 0.0000 *
+Epoch 2/100 | Train Loss: 0.6956, Hit Rate: 0.0001 | Val Loss: 0.6762, Hit Rate (TF): 0.0000
+Epoch 3/100 | Train Loss: 0.6336, Hit Rate: 0.0001 | Val Loss: 0.6083, Hit Rate (TF): 0.0004 *
+Epoch 4/100 | Train Loss: 0.5811, Hit Rate: 0.0005 | Val Loss: 0.5574, Hit Rate (TF): 0.0002
+Epoch 5/100 | Train Loss: 0.5355, Hit Rate: 0.0015 | Val Loss: 0.5116, Hit Rate (TF): 0.0026 *
+Epoch 6/100 | Train Loss: 0.4943, Hit Rate: 0.0046 | Val Loss: 0.4797, Hit Rate (TF): 0.0041 *
+Epoch 7/100 | Train Loss: 0.4633, Hit Rate: 0.0073 | Val Loss: 0.4449, Hit Rate (TF): 0.0118 *
+Epoch 8/100 | Train Loss: 0.4336, Hit Rate: 0.0149 | Val Loss: 0.4278, Hit Rate (TF): 0.0163 *
+Epoch 9/100 | Train Loss: 0.4109, Hit Rate: 0.0196 | Val Loss: 0.4036, Hit Rate (TF): 0.0149
+Epoch 10/100 | Train Loss: 0.3896, Hit Rate: 0.0253 | Val Loss: 0.3897, Hit Rate (TF): 0.0294 *
+Epoch 11/100 | Train Loss: 0.3706, Hit Rate: 0.0364 | Val Loss: 0.3656, Hit Rate (TF): 0.0357 *
+Epoch 12/100 | Train Loss: 0.3534, Hit Rate: 0.0428 | Val Loss: 0.3608, Hit Rate (TF): 0.0411 *
+Epoch 13/100 | Train Loss: 0.3338, Hit Rate: 0.0582 | Val Loss: 0.3432, Hit Rate (TF): 0.0562 *
+Epoch 14/100 | Train Loss: 0.3207, Hit Rate: 0.0669 | Val Loss: 0.3305, Hit Rate (TF): 0.0609 *
+Epoch 15/100 | Train Loss: 0.3074, Hit Rate: 0.0790 | Val Loss: 0.3163, Hit Rate (TF): 0.0839 *
+Epoch 16/100 | Train Loss: 0.3095, Hit Rate: 0.0893 | Val Loss: 0.3084, Hit Rate (TF): 0.0869 *
+Epoch 17/100 | Train Loss: 0.2825, Hit Rate: 0.1082 | Val Loss: 0.3024, Hit Rate (TF): 0.1122 *
+Epoch 18/100 | Train Loss: 0.2718, Hit Rate: 0.1217 | Val Loss: 0.2963, Hit Rate (TF): 0.1056
+Epoch 19/100 | Train Loss: 0.2646, Hit Rate: 0.1291 | Val Loss: 0.2894, Hit Rate (TF): 0.1220 *
+Epoch 20/100 | Train Loss: 0.2533, Hit Rate: 0.1466 | Val Loss: 0.2885, Hit Rate (TF): 0.1035
+Epoch 21/100 | Train Loss: 0.2449, Hit Rate: 0.1615 | Val Loss: 0.2762, Hit Rate (TF): 0.1319 *
+Epoch 22/100 | Train Loss: 0.2365, Hit Rate: 0.1757 | Val Loss: 0.2619, Hit Rate (TF): 0.1532 *
+Epoch 23/100 | Train Loss: 0.2284, Hit Rate: 0.1856 | Val Loss: 0.2680, Hit Rate (TF): 0.1538 *
+Epoch 24/100 | Train Loss: 0.2210, Hit Rate: 0.2024 | Val Loss: 0.2645, Hit Rate (TF): 0.1404
+Epoch 25/100 | Train Loss: 0.2146, Hit Rate: 0.2069 | Val Loss: 0.2485, Hit Rate (TF): 0.1734 *
+Epoch 26/100 | Train Loss: 0.2069, Hit Rate: 0.2272 | Val Loss: 0.2458, Hit Rate (TF): 0.1786 *
+Epoch 27/100 | Train Loss: 0.2002, Hit Rate: 0.2440 | Val Loss: 0.2418, Hit Rate (TF): 0.1775
+Epoch 28/100 | Train Loss: 0.1949, Hit Rate: 0.2564 | Val Loss: 0.2406, Hit Rate (TF): 0.1949 *
+Epoch 29/100 | Train Loss: 0.1885, Hit Rate: 0.2678 | Val Loss: 0.2335, Hit Rate (TF): 0.2012 *
+Epoch 30/100 | Train Loss: 0.1817, Hit Rate: 0.2871 | Val Loss: 0.2328, Hit Rate (TF): 0.1976
+Epoch 31/100 | Train Loss: 0.1774, Hit Rate: 0.2973 | Val Loss: 0.2270, Hit Rate (TF): 0.2200 *
+Epoch 32/100 | Train Loss: 0.1718, Hit Rate: 0.3046 | Val Loss: 0.2240, Hit Rate (TF): 0.2264 *
+Epoch 33/100 | Train Loss: 0.1646, Hit Rate: 0.3207 | Val Loss: 0.2147, Hit Rate (TF): 0.2431 *
+Epoch 34/100 | Train Loss: 0.1603, Hit Rate: 0.3374 | Val Loss: 0.2239, Hit Rate (TF): 0.2293
+Epoch 35/100 | Train Loss: 0.1595, Hit Rate: 0.3420 | Val Loss: 0.2172, Hit Rate (TF): 0.2430
+Epoch 36/100 | Train Loss: 0.1495, Hit Rate: 0.3685 | Val Loss: 0.2126, Hit Rate (TF): 0.2508 *
+Epoch 37/100 | Train Loss: 0.1457, Hit Rate: 0.3749 | Val Loss: 0.2345, Hit Rate (TF): 0.2150
+Epoch 38/100 | Train Loss: 0.1430, Hit Rate: 0.3816 | Val Loss: 0.2155, Hit Rate (TF): 0.2502
+Epoch 39/100 | Train Loss: 0.1384, Hit Rate: 0.3964 | Val Loss: 0.2128, Hit Rate (TF): 0.2642 *
+Epoch 40/100 | Train Loss: 0.1338, Hit Rate: 0.4106 | Val Loss: 0.2149, Hit Rate (TF): 0.2568
+Epoch 41/100 | Train Loss: 0.1310, Hit Rate: 0.4212 | Val Loss: 0.2076, Hit Rate (TF): 0.2744 *
+Epoch 42/100 | Train Loss: 0.1274, Hit Rate: 0.4305 | Val Loss: 0.2123, Hit Rate (TF): 0.2572
+Epoch 43/100 | Train Loss: 0.1227, Hit Rate: 0.4460 | Val Loss: 0.2076, Hit Rate (TF): 0.2760 *
+Epoch 44/100 | Train Loss: 0.1192, Hit Rate: 0.4561 | Val Loss: 0.2122, Hit Rate (TF): 0.2771 *
+Epoch 45/100 | Train Loss: 0.1164, Hit Rate: 0.4667 | Val Loss: 0.2119, Hit Rate (TF): 0.2765
+Epoch 46/100 | Train Loss: 0.1119, Hit Rate: 0.4789 | Val Loss: 0.2059, Hit Rate (TF): 0.2860 *
+Epoch 47/100 | Train Loss: 0.1084, Hit Rate: 0.4908 | Val Loss: 0.2113, Hit Rate (TF): 0.2845
+Epoch 48/100 | Train Loss: 0.1065, Hit Rate: 0.5001 | Val Loss: 0.2222, Hit Rate (TF): 0.2726
+Epoch 49/100 | Train Loss: 0.1055, Hit Rate: 0.5027 | Val Loss: 0.1996, Hit Rate (TF): 0.3189 *
+Epoch 50/100 | Train Loss: 0.0991, Hit Rate: 0.5249 | Val Loss: 0.2001, Hit Rate (TF): 0.3235 *
+Epoch 51/100 | Train Loss: 0.0966, Hit Rate: 0.5320 | Val Loss: 0.2079, Hit Rate (TF): 0.3016
+Epoch 52/100 | Train Loss: 0.0948, Hit Rate: 0.5368 | Val Loss: 0.2037, Hit Rate (TF): 0.3264 *
+Epoch 53/100 | Train Loss: 0.0907, Hit Rate: 0.5590 | Val Loss: 0.1997, Hit Rate (TF): 0.3226
+Epoch 54/100 | Train Loss: 0.0900, Hit Rate: 0.5588 | Val Loss: 0.2108, Hit Rate (TF): 0.3166
+Epoch 55/100 | Train Loss: 0.0859, Hit Rate: 0.5737 | Val Loss: 0.2080, Hit Rate (TF): 0.3114
+Epoch 56/100 | Train Loss: 0.0828, Hit Rate: 0.5822 | Val Loss: 0.2012, Hit Rate (TF): 0.3361 *
+Epoch 57/100 | Train Loss: 0.0807, Hit Rate: 0.5991 | Val Loss: 0.2092, Hit Rate (TF): 0.3153
+Epoch 58/100 | Train Loss: 0.0792, Hit Rate: 0.6017 | Val Loss: 0.2097, Hit Rate (TF): 0.3238
+Epoch 59/100 | Train Loss: 0.0780, Hit Rate: 0.6040 | Val Loss: 0.2056, Hit Rate (TF): 0.3398 *
+Epoch 60/100 | Train Loss: 0.0772, Hit Rate: 0.6112 | Val Loss: 0.2061, Hit Rate (TF): 0.3373
+Epoch 61/100 | Train Loss: 0.0722, Hit Rate: 0.6322 | Val Loss: 0.2064, Hit Rate (TF): 0.3435 *
+Epoch 62/100 | Train Loss: 0.0697, Hit Rate: 0.6408 | Val Loss: 0.2076, Hit Rate (TF): 0.3335
+Epoch 63/100 | Train Loss: 0.0669, Hit Rate: 0.6543 | Val Loss: 0.2067, Hit Rate (TF): 0.3557 *
+Epoch 64/100 | Train Loss: 0.0651, Hit Rate: 0.6632 | Val Loss: 0.2037, Hit Rate (TF): 0.3672 *
+Epoch 65/100 | Train Loss: 0.0659, Hit Rate: 0.6587 | Val Loss: 0.2086, Hit Rate (TF): 0.3525
+Epoch 66/100 | Train Loss: 0.0612, Hit Rate: 0.6764 | Val Loss: 0.2153, Hit Rate (TF): 0.3442
+Epoch 67/100 | Train Loss: 0.0617, Hit Rate: 0.6735 | Val Loss: 0.2134, Hit Rate (TF): 0.3584
+Epoch 68/100 | Train Loss: 0.0580, Hit Rate: 0.6946 | Val Loss: 0.2224, Hit Rate (TF): 0.3359
+Epoch 69/100 | Train Loss: 0.0609, Hit Rate: 0.6784 | Val Loss: 0.2116, Hit Rate (TF): 0.3717 *
+Epoch 70/100 | Train Loss: 0.0549, Hit Rate: 0.7108 | Val Loss: 0.2145, Hit Rate (TF): 0.3658
+Epoch 71/100 | Train Loss: 0.0555, Hit Rate: 0.7046 | Val Loss: 0.2196, Hit Rate (TF): 0.3653
+Epoch 72/100 | Train Loss: 0.0513, Hit Rate: 0.7264 | Val Loss: 0.2198, Hit Rate (TF): 0.3667
+Epoch 73/100 | Train Loss: 0.0499, Hit Rate: 0.7316 | Val Loss: 0.2187, Hit Rate (TF): 0.3701
+Epoch 74/100 | Train Loss: 0.0496, Hit Rate: 0.7363 | Val Loss: 0.2269, Hit Rate (TF): 0.3472
+Epoch 75/100 | Train Loss: 0.0488, Hit Rate: 0.7372 | Val Loss: 0.2199, Hit Rate (TF): 0.3741 *
+Epoch 76/100 | Train Loss: 0.0485, Hit Rate: 0.7414 | Val Loss: 0.2197, Hit Rate (TF): 0.3702
+Epoch 77/100 | Train Loss: 0.0436, Hit Rate: 0.7673 | Val Loss: 0.2223, Hit Rate (TF): 0.3826 *
+Epoch 78/100 | Train Loss: 0.0457, Hit Rate: 0.7509 | Val Loss: 0.2310, Hit Rate (TF): 0.3610
+Epoch 79/100 | Train Loss: 0.0454, Hit Rate: 0.7506 | Val Loss: 0.2307, Hit Rate (TF): 0.3627
+Epoch 80/100 | Train Loss: 0.0411, Hit Rate: 0.7789 | Val Loss: 0.2218, Hit Rate (TF): 0.3894 *
+Epoch 81/100 | Train Loss: 0.0409, Hit Rate: 0.7772 | Val Loss: 0.2364, Hit Rate (TF): 0.3557
+Epoch 82/100 | Train Loss: 0.0445, Hit Rate: 0.7522 | Val Loss: 0.2288, Hit Rate (TF): 0.3847
+Epoch 83/100 | Train Loss: 0.0367, Hit Rate: 0.8027 | Val Loss: 0.2440, Hit Rate (TF): 0.3579
+Epoch 84/100 | Train Loss: 0.0358, Hit Rate: 0.8076 | Val Loss: 0.2309, Hit Rate (TF): 0.3885
+Epoch 85/100 | Train Loss: 0.0367, Hit Rate: 0.8026 | Val Loss: 0.2365, Hit Rate (TF): 0.3750
+Epoch 86/100 | Train Loss: 0.0387, Hit Rate: 0.7874 | Val Loss: 0.2404, Hit Rate (TF): 0.3746
+Epoch 87/100 | Train Loss: 0.0359, Hit Rate: 0.8051 | Val Loss: 0.2402, Hit Rate (TF): 0.3795
+Epoch 88/100 | Train Loss: 0.0366, Hit Rate: 0.7949 | Val Loss: 0.2552, Hit Rate (TF): 0.3570
+Epoch 89/100 | Train Loss: 0.0343, Hit Rate: 0.8119 | Val Loss: 0.2458, Hit Rate (TF): 0.3857
+Epoch 90/100 | Train Loss: 0.0295, Hit Rate: 0.8443 | Val Loss: 0.2378, Hit Rate (TF): 0.3894
+Epoch 91/100 | Train Loss: 0.0287, Hit Rate: 0.8482 | Val Loss: 0.2440, Hit Rate (TF): 0.3888
+Epoch 92/100 | Train Loss: 0.0326, Hit Rate: 0.8243 | Val Loss: 0.2488, Hit Rate (TF): 0.3795
+Epoch 93/100 | Train Loss: 0.0316, Hit Rate: 0.8247 | Val Loss: 0.2516, Hit Rate (TF): 0.3791
+Epoch 94/100 | Train Loss: 0.0310, Hit Rate: 0.8291 | Val Loss: 0.2485, Hit Rate (TF): 0.3844
+Epoch 95/100 | Train Loss: 0.0313, Hit Rate: 0.8222 | Val Loss: 0.2515, Hit Rate (TF): 0.3804
+Epoch 96/100 | Train Loss: 0.0341, Hit Rate: 0.8088 | Val Loss: 0.2580, Hit Rate (TF): 0.3728
+Epoch 97/100 | Train Loss: 0.0252, Hit Rate: 0.8665 | Val Loss: 0.2444, Hit Rate (TF): 0.3995 *
+Epoch 98/100 | Train Loss: 0.0207, Hit Rate: 0.8972 | Val Loss: 0.2748, Hit Rate (TF): 0.3644
+Epoch 99/100 | Train Loss: 0.0289, Hit Rate: 0.8428 | Val Loss: 0.2615, Hit Rate (TF): 0.3738
+Epoch 100/100 | Train Loss: 0.0357, Hit Rate: 0.7977 | Val Loss: 0.2643, Hit Rate (TF): 0.3721
+
+Best validation hit rate (teacher forcing): 0.3995
+Autoregressive hit rate (greedy decoding): 0.0000

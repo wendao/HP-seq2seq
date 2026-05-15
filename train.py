@@ -198,7 +198,7 @@ class Seq2SeqLSTM(nn.Module):
 # ============ CNN Models ============
 
 class EncoderCNN(nn.Module):
-    """CNN encoder with configurable complexity via cnn_level."""
+    """CNN encoder with configurable layers."""
 
     def __init__(self, embed_dim: int, hidden_size: int, input_vocab_size: int, n_layers: int = 5):
         super().__init__()
@@ -214,82 +214,75 @@ class EncoderCNN(nn.Module):
         embedded = self.embedding(x)  # (batch, seq_len, embed_dim)
         h = embedded.transpose(1, 2)  # (batch, embed_dim, seq_len)
 
-        for i, conv in enumerate(self.convs):
+        for conv in self.convs:
             h = torch.relu(conv(h))
-            if i > 0:
-                h = h + residual
-            if i < self.n_layers - 1:
-                residual = h
 
-        global_max = torch.max(h, dim=2)[0]
-        global_avg = h.mean(dim=2)
-        pooled = torch.cat([global_max, global_avg], dim=1)  # (batch, hidden*2)
-        # Return both pooled vector and embedding sequence for cross-attention
+        # Global max pooling only (matching oldtrain.py working design)
+        pooled = torch.max(h, dim=2)[0]  # (batch, hidden_size)
         return pooled, embedded
 
 
 class DecoderCNN(nn.Module):
-    """CNN decoder with optional cross-attention."""
+    """CNN decoder with step-by-step processing (causal by design, like an RNN)."""
 
     def __init__(self, embed_dim: int, hidden_size: int, output_vocab_size: int,
-                 n_layers: int = 4, cross_attn: bool = False,
+                 n_layers: int = 4, cross_attn: int = 0,
                  cross_attn_module: nn.Module = None):
         super().__init__()
-        self.hidden_size = hidden_size
-        self.cross_attn_enabled = cross_attn
+        self.cross_attn_enabled = cross_attn > 0
         self.cross_attn = cross_attn_module
 
         self.embedding = nn.Embedding(output_vocab_size, embed_dim)
 
         self.convs = nn.ModuleList()
-        in_ch = embed_dim
-        for _ in range(n_layers):
-            self.convs.append(nn.Conv1d(in_ch, hidden_size, kernel_size=3, padding=1))
-            in_ch = hidden_size
+        self.convs.append(nn.Conv1d(embed_dim, hidden_size, kernel_size=3, padding=1))
+        for _ in range(n_layers - 1):
+            self.convs.append(nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1))
 
         self.output_proj = nn.Linear(hidden_size, output_vocab_size)
 
     def forward(self, encoder_hidden: torch.Tensor, target: torch.Tensor,
                 memory: torch.Tensor = None) -> torch.Tensor:
-        batch_size = encoder_hidden.size(0)
         seq_len = target.size(1)
+
+        # encoder_hidden: (batch, hidden_size)
+        hidden = encoder_hidden.unsqueeze(2)  # (batch, hidden_size, 1)
 
         embedded = self.embedding(target)  # (batch, tgt_len, embed_dim)
 
         if self.cross_attn_enabled and self.cross_attn is not None and memory is not None:
             embedded = self.cross_attn(embedded, memory)
 
-        x = embedded.transpose(1, 2)
-        h = x
-        for i, conv in enumerate(self.convs):
-            h = torch.relu(conv(h))
-            if i > 0:
-                h = h + residual
-            if i < len(self.convs) - 1:
-                residual = h
+        x = embedded.transpose(1, 2)  # (batch, embed_dim, tgt_len)
 
-        logits = self.output_proj(h.transpose(1, 2))
-        return logits
+        # Step-by-step processing (causal by design, matching oldtrain.py pattern)
+        outputs = []
+        for t in range(seq_len):
+            x_t = x[:, :, t:t+1]  # (batch, embed_dim, 1) — single token
+            hidden = torch.relu(self.convs[0](x_t) + hidden)
+            for conv in self.convs[1:]:
+                hidden = torch.relu(conv(hidden) + hidden)
+            logits = self.output_proj(hidden.squeeze(2))
+            outputs.append(logits)
+
+        return torch.stack(outputs, dim=1)
 
 
 class Seq2SeqCNN(nn.Module):
-    """CNN-based seq2seq model."""
+    """CNN-based seq2seq model with step-by-step decoder."""
 
     def __init__(self, embed_dim: int, hidden_size: int, input_vocab_size: int, output_vocab_size: int,
                  cnn_n_layers: int = 5, cross_attn: int = 0,
                  cross_attn_module: nn.Module = None):
         super().__init__()
         self.encoder = EncoderCNN(embed_dim, hidden_size, input_vocab_size, n_layers=cnn_n_layers)
-        decoder_n_layers = max(1, cnn_n_layers - 1)
-        self.decoder = DecoderCNN(embed_dim, hidden_size, output_vocab_size, n_layers=decoder_n_layers,
+        self.decoder = DecoderCNN(embed_dim, hidden_size, output_vocab_size, n_layers=cnn_n_layers,
                                   cross_attn=cross_attn, cross_attn_module=cross_attn_module)
-        self.project = nn.Linear(hidden_size * 2, embed_dim)
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         encoder_hidden, encoder_embed = self.encoder(inputs, lengths)
-        decoder_init = self.project(encoder_hidden)
-        memory = encoder_embed  # (batch, src_len, embed_dim) for cross-attn
-        logits = self.decoder(decoder_init, targets, memory)
+        memory = encoder_embed
+        logits = self.decoder(encoder_hidden, targets, memory)
         return logits
 
 
@@ -352,7 +345,7 @@ def parse_args():
     parser.add_argument('--hidden_size', type=int, default=32)
     parser.add_argument('--embed_dim', type=int, default=16)
     parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--num_layers', type=int, default=1, help='Number of layers (RNN/LSTM: num_layers; CNN: encoder=num_layers, decoder=num_layers-1)')
+    parser.add_argument('--num_layers', type=int, default=1, help='Number of layers')
     parser.add_argument('--cross_attn', type=int, default=0, help='Number of cross-attention heads (0=disabled)')
     return parser.parse_args()
 

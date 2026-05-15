@@ -44,9 +44,7 @@ Training script with model selection and hyperparameter support.
 ### Usage (GPU)
 
 ```bash
-export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
-export CUDA_VISIBLE_DEVICES="3"
-python train.py --model lstm --fold 0 --epochs 30
+python train.py --model lstm --fold 0 --epochs 100 --num_layers 1 --hidden_size 128 --embed_dim 64
 ```
 
 ### Arguments
@@ -55,12 +53,12 @@ python train.py --model lstm --fold 0 --epochs 30
 |----------|---------|-------------|
 | `--model` | lstm | Model type: rnn, lstm, or cnn |
 | `--fold` | 0 | Cross-validation fold (0-4) |
-| `--epochs` | 30 | Number of training epochs |
+| `--epochs` | 50 | Number of training epochs |
 | `--lr` | 0.001 | Learning rate |
-| `--hidden_size` | 8 | Hidden dimension size |
-| `--embed_dim` | 4 | Embedding dimension |
+| `--hidden_size` | 32 | Hidden dimension size |
+| `--embed_dim` | 16 | Embedding dimension |
 | `--batch_size` | 64 | Batch size |
-| `--num_layers` | 1 | Number of layers: RNN/LSTM uses directly; CNN uses as encoder layers (decoder uses num_layers-1) |
+| `--num_layers` | 1 | Number of layers |
 | `--cross_attn` | 0 | Number of cross-attention heads (0 = disabled) |
 
 ### Models
@@ -80,17 +78,16 @@ All models accept `--hidden_size` and `--embed_dim` to control capacity.
 - `--cross_attn`: Number of cross-attention heads (0 = disabled)
 
 **CNN Seq2Seq:**
-- `EncoderCNN`: Multi-layer Conv1D encoder with residual connections and global pooling (max + avg)
-- `DecoderCNN`: Conv1D decoder with optional cross-attention
-- `--num_layers`: Number of CNN encoder layers; decoder uses num_layers-1
+- `EncoderCNN`: Multi-layer Conv1D encoder with global max pooling
+- `DecoderCNN`: Step-by-step Conv1D decoder (causal by design, like RNN)
+- `--num_layers`: Number of CNN layers for both encoder and decoder
 - `--cross_attn`: Number of cross-attention heads (0 = disabled)
 
-| num_layers | cross_attn | Parameters |
-|------------|-----------|------------|
-| 1 | false | 370 |
-| 3 | false | 970 |
-| 5 | false | 1,770 |
-| 5 | true | 1,770 |
+| num_layers | hidden_size | embed_dim | Parameters |
+|------------|-------------|-----------|------------|
+| 1 | 128 | 64 | 50,822 |
+| 3 | 128 | 64 | 247,942 |
+| 3 | 256 | 128 | 987,398 |
 
 ### Training Details
 
@@ -107,45 +104,45 @@ Content tokens: `R=3`, `L=4`, `F=5`
 
 ## Latest Results (5-fold CV, 100 epochs)
 
+Parameters: `--num_layers 1 --hidden_size 128 --embed_dim 64` (CNN: `--num_layers 3`)
+
 ### LSTM
 | Fold | Best Val Hit Rate |
 |------|-------------------|
-| 0 | 0.0269 |
-| 1 | 0.0235 |
-| 2 | 0.0343 |
-| 3 | 0.0309 |
-| 4 | 0.0470 |
-| **Average** | **0.0325** |
+| 0 | 0.4267 |
+| 1 | 0.4427 |
+| 2 | 0.4416 |
+| 3 | 0.4072 |
+| 4 | 0.3995 |
+| **Average** | **0.4235** |
 
 ### RNN
 | Fold | Best Val Hit Rate |
 |------|-------------------|
-| 0 | 0.0062 |
-| 1 | 0.0042 |
-| 2 | 0.0042 |
-| 3 | 0.0052 |
-| 4 | 0.0028 |
-| **Average** | **0.0045** |
+| 0 | 0.2241 |
+| 1 | 0.2487 |
+| 2 | 0.2040 |
+| 3 | 0.1979 |
+| 4 | 0.1968 |
+| **Average** | **0.2143** |
 
 ### CNN
 | Fold | Best Val Hit Rate |
 |------|-------------------|
-| 0 | 1.0000 |
-| 1 | 1.0000 |
-| 2 | 1.0000 |
-| 3 | 1.0000 |
-| 4 | 1.0000 |
-| **Average** | **1.0000** |
+| 0 | 0.1053 |
+| 1 | 0.1276 |
+| 2 | 0.1404 |
+| 3 | 0.1250 |
+| 4 | 0.1243 |
+| **Average** | **0.1245** |
 
 ## Summary
 
 | Model | 5-fold CV Avg Hit Rate |
 |-------|----------------------|
-| **CNN** | **1.0000** |
-| LSTM | 0.0325 |
-| RNN | 0.0045 |
-
-**CNN achieves perfect hit rate!**
+| **LSTM** | **0.4235** |
+| RNN | 0.2143 |
+| CNN | 0.1245 |
 
 ## Verification
 
@@ -153,19 +150,18 @@ Content tokens: `R=3`, `L=4`, `F=5`
 # Test data loading
 python prepare.py
 
-# Train one fold (GPU)
-export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
-python train.py --model lstm --fold 0 --epochs 100
+# Run all baselines (5-fold CV)
+bash run_baseline.sh
+
+# Or train a single fold
+python train.py --model lstm --fold 0 --epochs 100 --num_layers 1 --hidden_size 128 --embed_dim 64
 ```
 
 ## Future Improvements
 
-To maximize hit rate, consider:
-1. **Attention mechanisms** - Add attention between encoder and decoder
-2. **Beam search** - Use beam search during inference instead of greedy decoding
-3. **Architecture changes** - Transformer-based models
-4. **Regularization** - Dropout, weight decay, label smoothing
-5. **Learning rate scheduling** - Learning rate warmup and decay
-6. **Data augmentation** - Reverse complement sequences
-7. **Label smoothing** - Prevent overconfident predictions
-8. **Scheduled sampling** - Gradually reduce teacher forcing ratio
+1. **Beam search** - Use beam search during inference instead of greedy decoding
+2. **Transformer models** - Replace CNN/RNN with transformer-based architectures
+3. **Regularization** - Dropout, weight decay, label smoothing
+4. **Learning rate scheduling** - Warmup and decay
+5. **Data augmentation** - Reverse complement sequences
+6. **Scheduled sampling** - Gradually reduce teacher forcing ratio
