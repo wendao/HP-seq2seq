@@ -14,7 +14,7 @@ HP序列→结构映射的Seq2seq训练框架。
 - **大小:** 24,900 个样本
 - **格式:** `HPHHPPHH... RFLLFR...`（空格分隔的输入和输出）
 - **输入长度:** 20（字母表: H, P）
-- **输出长度:** 18（字母表: R, L, F，外加特殊标记<pad>, <sos>, <eos>）
+- **输出长度:** 18（字母表: R, L, F，外加特殊标记'<pad>', '<sos>', '<eos>'）
 
 ## 项目结构
 
@@ -44,9 +44,7 @@ HP-seq2seq/
 ### 使用方法（GPU）
 
 ```bash
-export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
-export CUDA_VISIBLE_DEVICES="3"
-python train.py --model lstm --fold 0 --epochs 30
+python train.py --model lstm --fold 0 --epochs 100 --num_layers 1 --hidden_size 128 --embed_dim 64
 ```
 
 ### 参数
@@ -55,12 +53,12 @@ python train.py --model lstm --fold 0 --epochs 30
 |------|--------|------|
 | `--model` | lstm | 模型类型: rnn, lstm, 或 cnn |
 | `--fold` | 0 | 交叉验证折数 (0-4) |
-| `--epochs` | 30 | 训练轮数 |
+| `--epochs` | 50 | 训练轮数 |
 | `--lr` | 0.001 | 学习率 |
-| `--hidden_size` | 8 | 隐藏层维度 |
-| `--embed_dim` | 4 | 嵌入维度 |
+| `--hidden_size` | 32 | 隐藏层维度 |
+| `--embed_dim` | 16 | 嵌入维度 |
 | `--batch_size` | 64 | 批量大小 |
-| `--num_layers` | 1 | 层数：RNN/LSTM直接使用；CNN作为编码器层数（解码器使用num_layers-1） |
+| `--num_layers` | 1 | 层数 |
 | `--cross_attn` | 0 | Cross-Attention 头数（0=禁用） |
 
 ### 模型
@@ -80,17 +78,16 @@ python train.py --model lstm --fold 0 --epochs 30
 - `--cross_attn`: Cross-Attention 头数（0=禁用）
 
 **CNN Seq2Seq:**
-- `EncoderCNN`: 多层Conv1D编码器，带残差连接和全局池化（max + avg）
-- `DecoderCNN`: 带可选Cross-Attention的Conv1D解码器
-- `--num_layers`: CNN编码器层数；解码器使用num_layers-1
+- `EncoderCNN`: 多层Conv1D编码器，全局最大池化
+- `DecoderCNN`: 逐步Conv1D解码器（因果架构，类似RNN）
+- `--num_layers`: 编码器和解码器共用层数
 - `--cross_attn`: Cross-Attention 头数（0=禁用）
 
-| num_layers | cross_attn | 参数量 |
-|--------------|-----------|--------|
-| 1 | false | 370 |
-| 3 | false | 970 |
-| 5 | false | 1,770 |
-| 5 | true | 1,770 |
+| num_layers | hidden_size | embed_dim | 参数量 |
+|------------|-------------|-----------|--------|
+| 1 | 128 | 64 | 50,822 |
+| 3 | 128 | 64 | 247,942 |
+| 3 | 256 | 128 | 987,398 |
 
 ### 训练细节
 
@@ -107,45 +104,31 @@ python train.py --model lstm --fold 0 --epochs 30
 
 ## 最新结果（5折CV，100轮）
 
-### LSTM
-| 折 | 最佳验证Hit Rate |
-|------|-------------------|
-| 0 | 0.0269 |
-| 1 | 0.0235 |
-| 2 | 0.0343 |
-| 3 | 0.0309 |
-| 4 | 0.0470 |
-| **平均** | **0.0325** |
+参数: `--num_layers 1 --hidden_size 128 --embed_dim 64`（CNN: `--num_layers 3`）
 
-### RNN
-| 折 | 最佳验证Hit Rate |
-|------|-------------------|
-| 0 | 0.0062 |
-| 1 | 0.0042 |
-| 2 | 0.0042 |
-| 3 | 0.0052 |
-| 4 | 0.0028 |
-| **平均** | **0.0045** |
+### 无 Cross-Attention
 
-### CNN
-| 折 | 最佳验证Hit Rate |
-|------|-------------------|
-| 0 | 1.0000 |
-| 1 | 1.0000 |
-| 2 | 1.0000 |
-| 3 | 1.0000 |
-| 4 | 1.0000 |
-| **平均** | **1.0000** |
+| 模型 | 折0 | 折1 | 折2 | 折3 | 折4 | **平均** |
+|------|------|------|------|------|------|---------|
+| **LSTM** | 0.4267 | 0.4427 | 0.4416 | 0.4072 | 0.3995 | **0.4235** |
+| RNN | 0.2241 | 0.2487 | 0.2040 | 0.1979 | 0.1968 | **0.2143** |
+| CNN | 0.1053 | 0.1276 | 0.1404 | 0.1250 | 0.1243 | **0.1245** |
+
+### 有 Cross-Attention (`--cross_attn 8`)
+
+| 模型 | 折0 | 折1 | 折2 | 折3 | 折4 | **平均** |
+|------|------|------|------|------|------|---------|
+| **LSTM** | 0.5613 | 0.5569 | 0.5473 | 0.5509 | 0.5521 | **0.5537** |
+| RNN | 0.3459 | 0.3856 | 0.3620 | 0.3699 | 0.3570 | **0.3641** |
+| CNN | 0.1077 | 0.1224 | 0.1326 | 0.1401 | 0.1325 | **0.1271** |
 
 ## 总结
 
-| 模型 | 5折CV平均Hit Rate |
-|-------|----------------------|
-| **CNN** | **1.0000** |
-| LSTM | 0.0325 |
-| RNN | 0.0045 |
-
-**CNN达到了完美的hit rate！**
+| 模型 | 无CA | 有CA |
+|------|------|------|
+| **LSTM** | 0.4235 | **0.5537** |
+| RNN | 0.2143 | **0.3641** |
+| CNN | 0.1245 | 0.1271 |
 
 ## 验证
 
@@ -153,16 +136,18 @@ python train.py --model lstm --fold 0 --epochs 30
 # 测试数据加载
 python prepare.py
 
-# 训练一折（GPU）
-export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
-python train.py --model cnn --fold 0 --epochs 30
+# 运行所有基线（5折CV）
+bash run_baseline.sh
+
+# 或者训练单折
+python train.py --model lstm --fold 0 --epochs 100 --num_layers 1 --hidden_size 128 --embed_dim 64
 ```
 
 ## 未来改进方向
 
-为进一步提高hit rate，可以考虑：
 1. **束搜索** - 推理时使用束搜索而非贪心解码
-2. **架构改进** - Transformer模型
+2. **Transformer模型** - 替换CNN/RNN为transformer架构
 3. **正则化** - Dropout、权重衰减、标签平滑
-4. **学习率调度** - 学习率预热和衰减
+4. **学习率调度** - 预热和衰减
 5. **数据增强** - 序列反转互补
+6. **Scheduled sampling** - 逐步降低teacher forcing比例

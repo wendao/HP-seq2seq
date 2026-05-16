@@ -14,7 +14,7 @@ Given an input HP sequence (length 20, alphabet `{H, P}`), predict the output st
 - **Size:** 24,900 samples
 - **Format:** `HPHHPPHH... RFLLFR...` (space-separated input and output)
 - **Input length:** 20 (alphabet: H, P)
-- **Output length:** 18 (alphabet: R, L, F, plus special tokens <pad>, <sos>, <eos>)
+- **Output length:** 18 (alphabet: R, L, F, plus special tokens '<pad>', '<sos>', '<eos>')
 
 ## Project Structure
 
@@ -106,43 +106,29 @@ Content tokens: `R=3`, `L=4`, `F=5`
 
 Parameters: `--num_layers 1 --hidden_size 128 --embed_dim 64` (CNN: `--num_layers 3`)
 
-### LSTM
-| Fold | Best Val Hit Rate |
-|------|-------------------|
-| 0 | 0.4267 |
-| 1 | 0.4427 |
-| 2 | 0.4416 |
-| 3 | 0.4072 |
-| 4 | 0.3995 |
-| **Average** | **0.4235** |
+### Without cross-attention
 
-### RNN
-| Fold | Best Val Hit Rate |
-|------|-------------------|
-| 0 | 0.2241 |
-| 1 | 0.2487 |
-| 2 | 0.2040 |
-| 3 | 0.1979 |
-| 4 | 0.1968 |
-| **Average** | **0.2143** |
+| Model | Fold 0 | Fold 1 | Fold 2 | Fold 3 | Fold 4 | **Avg** |
+|-------|--------|--------|--------|--------|--------|---------|
+| **LSTM** | 0.4267 | 0.4427 | 0.4416 | 0.4072 | 0.3995 | **0.4235** |
+| RNN | 0.2241 | 0.2487 | 0.2040 | 0.1979 | 0.1968 | **0.2143** |
+| CNN | 0.1053 | 0.1276 | 0.1404 | 0.1250 | 0.1243 | **0.1245** |
 
-### CNN
-| Fold | Best Val Hit Rate |
-|------|-------------------|
-| 0 | 0.1053 |
-| 1 | 0.1276 |
-| 2 | 0.1404 |
-| 3 | 0.1250 |
-| 4 | 0.1243 |
-| **Average** | **0.1245** |
+### With cross-attention (`--cross_attn 8`)
+
+| Model | Fold 0 | Fold 1 | Fold 2 | Fold 3 | Fold 4 | **Avg** |
+|-------|--------|--------|--------|--------|--------|---------|
+| **LSTM** | 0.5613 | 0.5569 | 0.5473 | 0.5509 | 0.5521 | **0.5537** |
+| RNN | 0.3459 | 0.3856 | 0.3620 | 0.3699 | 0.3570 | **0.3641** |
+| CNN | 0.1077 | 0.1224 | 0.1326 | 0.1401 | 0.1325 | **0.1271** |
 
 ## Summary
 
-| Model | 5-fold CV Avg Hit Rate |
-|-------|----------------------|
-| **LSTM** | **0.4235** |
-| RNN | 0.2143 |
-| CNN | 0.1245 |
+| Model | w/o CA | w/ CA |
+|-------|--------|-------|
+| **LSTM** | 0.4235 | **0.5537** |
+| RNN | 0.2143 | **0.3641** |
+| CNN | 0.1245 | 0.1271 |
 
 ## Verification
 
