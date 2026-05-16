@@ -4,6 +4,7 @@ import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 import argparse
+import math
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -286,6 +287,96 @@ class Seq2SeqCNN(nn.Module):
         return logits
 
 
+# ============ Transformer Models ============
+
+class PositionalEncoding(nn.Module):
+    """Sinusoidal positional encoding."""
+
+    def __init__(self, d_model: int, max_len: int = 64, dropout: float = 0.1):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len).unsqueeze(1).float()
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe.unsqueeze(0))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.pe[:, :x.size(1)]
+        return self.dropout(x)
+
+
+class EncoderTransformer(nn.Module):
+    """Transformer encoder."""
+
+    def __init__(self, embed_dim: int, hidden_size: int, input_vocab_size: int,
+                 n_layers: int = 3, n_heads: int = 8, dropout: float = 0.1):
+        super().__init__()
+        self.embedding = nn.Embedding(input_vocab_size, embed_dim, padding_idx=0)
+        self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
+            batch_first=True, dropout=dropout
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        embedded = self.embedding(x)
+        embedded = self.pos_encoding(embedded)
+        src_key_padding_mask = (x == 0)
+        output = self.transformer(embedded, src_key_padding_mask=src_key_padding_mask)
+        pooled = output.mean(dim=1)
+        return output, pooled
+
+
+class DecoderTransformer(nn.Module):
+    """Transformer decoder with causal self-attention and cross-attention."""
+
+    def __init__(self, embed_dim: int, hidden_size: int, output_vocab_size: int,
+                 n_layers: int = 3, n_heads: int = 8, dropout: float = 0.1):
+        super().__init__()
+        self.embedding = nn.Embedding(output_vocab_size, embed_dim, padding_idx=0)
+        self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
+            batch_first=True, dropout=dropout
+        )
+        self.transformer = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
+        self.output_proj = nn.Linear(embed_dim, output_vocab_size)
+
+    def forward(self, encoder_output: torch.Tensor, target: torch.Tensor,
+                src_padding_mask: torch.Tensor = None) -> torch.Tensor:
+        tgt_len = target.size(1)
+        embedded = self.embedding(target)
+        embedded = self.pos_encoding(embedded)
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt_len).to(target.device)
+        tgt_key_padding_mask = (target == 0)
+        output = self.transformer(
+            embedded, encoder_output,
+            tgt_mask=tgt_mask,
+            tgt_key_padding_mask=tgt_key_padding_mask,
+            memory_key_padding_mask=src_padding_mask
+        )
+        return self.output_proj(output)
+
+
+class Seq2SeqTransformer(nn.Module):
+    """Transformer-based seq2seq model with built-in cross-attention."""
+
+    def __init__(self, embed_dim: int, hidden_size: int, input_vocab_size: int, output_vocab_size: int,
+                 n_layers: int = 3, n_heads: int = 8, dropout: float = 0.1):
+        super().__init__()
+        self.encoder = EncoderTransformer(embed_dim, hidden_size, input_vocab_size, n_layers, n_heads, dropout)
+        self.decoder = DecoderTransformer(embed_dim, hidden_size, output_vocab_size, n_layers, n_heads, dropout)
+
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        src_padding_mask = (inputs == 0)
+        encoder_output, _ = self.encoder(inputs, lengths)
+        logits = self.decoder(encoder_output, targets, src_padding_mask)
+        return logits
+
+
 # ============ Training ============
 
 def compute_hit_rate(logits: torch.Tensor, targets: torch.Tensor, pad_idx: int = 0) -> float:
@@ -338,7 +429,7 @@ def eval_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
 
 def parse_args():
     parser = argparse.ArgumentParser(description='HP-seq2seq training')
-    parser.add_argument('--model', type=str, default='lstm', choices=['rnn', 'lstm', 'cnn'])
+    parser.add_argument('--model', type=str, default='lstm', choices=['rnn', 'lstm', 'cnn', 'transformer'])
     parser.add_argument('--fold', type=int, default=0, choices=[0, 1, 2, 3, 4])
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--lr', type=float, default=0.001)
@@ -346,7 +437,9 @@ def parse_args():
     parser.add_argument('--embed_dim', type=int, default=16)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--num_layers', type=int, default=1, help='Number of layers')
-    parser.add_argument('--cross_attn', type=int, default=0, help='Number of cross-attention heads (0=disabled)')
+    parser.add_argument('--cross_attn', type=int, default=0, help='Number of cross-attention heads (0=disabled, ignored for transformer)')
+    parser.add_argument('--num_heads', type=int, default=8, help='Number of attention heads (transformer only)')
+    parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate (transformer only)')
     return parser.parse_args()
 
 
@@ -392,15 +485,20 @@ def main():
         model = Seq2SeqLSTM(args.embed_dim, args.hidden_size, input_vocab_size, output_vocab_size,
                            num_layers=args.num_layers, cross_attn=args.cross_attn,
                            cross_attn_module=cross_attn_module)
-    else:
+    elif args.model == 'cnn':
         model = Seq2SeqCNN(args.embed_dim, args.hidden_size, input_vocab_size, output_vocab_size,
                           cnn_n_layers=args.num_layers, cross_attn=args.cross_attn,
                           cross_attn_module=cross_attn_module)
+    else:
+        model = Seq2SeqTransformer(args.embed_dim, args.hidden_size, input_vocab_size, output_vocab_size,
+                                   n_layers=args.num_layers, n_heads=args.num_heads, dropout=args.dropout)
 
     model = model.to(device)
     print(f"Model: {args.model}, params={sum(p.numel() for p in model.parameters()):,}")
-    if args.cross_attn:
+    if args.cross_attn and args.model != 'transformer':
         print(f"  cross_attn=enabled")
+    if args.model == 'transformer':
+        print(f"  num_heads={args.num_heads}, dropout={args.dropout}")
 
     criterion = nn.CrossEntropyLoss(ignore_index=output_vocab['<pad>'])
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
