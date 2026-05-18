@@ -14,16 +14,19 @@ import prepare
 
 # ============ Tunable hyperparameters ============
 
-FOLD = 0
-EPOCHS = 200
-LR = 0.001
 HIDDEN_SIZE = 128
 EMBED_DIM = 64
-BATCH_SIZE = 64
 NUM_LAYERS = 3
 NUM_HEADS = 4
 DROPOUT = 0.1
+
+# ============ Fixed hyperparameters ============
+
+BATCH_SIZE = 64
 SPLIT = 'grouped'
+FOLD = 0
+EPOCHS = 50
+LR = 0.001
 
 # ===============================================
 
