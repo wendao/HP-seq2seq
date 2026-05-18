@@ -16,7 +16,7 @@ import prepare
 
 HIDDEN_SIZE = 256
 EMBED_DIM = 64
-NUM_LAYERS = 3
+NUM_LAYERS = 4
 NUM_HEADS = 4
 DROPOUT = 0.1
 
