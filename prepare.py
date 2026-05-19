@@ -56,6 +56,26 @@ def create_folds(data: List[Tuple[str, str]], n_folds: int = 5) -> List[Tuple[Li
     return folds
 
 
+def create_grouped_folds(data, n_folds=5):
+    groups = defaultdict(list)
+    for i, (_, out) in enumerate(data):
+        groups[out].append(i)
+    group_items = sorted(groups.items(), key=lambda x: len(x[1]), reverse=True)
+    fold_samples = [[] for _ in range(n_folds)]
+    fold_sizes = [0] * n_folds
+    for _, indices in group_items:
+        target = min(range(n_folds), key=lambda f: fold_sizes[f])
+        fold_samples[target].extend(indices)
+        fold_sizes[target] += len(indices)
+    all_indices = set(range(len(data)))
+    folds = []
+    for i in range(n_folds):
+        val_idx = fold_samples[i]
+        train_idx = list(all_indices - set(val_idx))
+        folds.append((train_idx, val_idx))
+    return folds
+
+
 class Seq2SeqDataset(Dataset):
     """Dataset for seq2seq training."""
 
