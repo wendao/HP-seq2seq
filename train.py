@@ -19,14 +19,17 @@ EMBED_DIM = 96
 NUM_LAYERS = 4
 NUM_HEADS = 4
 DROPOUT = 0.1
+BATCH_SIZE = 64
+LR = 0.001
+WEIGHT_DECAY = 1e-4
+GRAD_CLIP = 1.0
+LR_SCHEDULER = 'cosine'  # 'none', 'cosine', 'plateau'
+EPOCHS = 50
 
 # ============ Fixed hyperparameters ============
 
-BATCH_SIZE = 64
 SPLIT = 'grouped'
 FOLD = 0
-EPOCHS = 50
-LR = 0.001
 
 # ===============================================
 
@@ -129,7 +132,8 @@ def compute_hit_rate(logits: torch.Tensor, targets: torch.Tensor, pad_idx: int =
 
 
 def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
-                optimizer: optim.Optimizer, device: torch.device, pad_idx: int = 0) -> Tuple[float, float]:
+                optimizer: optim.Optimizer, device: torch.device, pad_idx: int = 0,
+                grad_clip: float = None) -> Tuple[float, float]:
     model.train()
     total_loss, total_hit_rate, n_batches = 0, 0, 0
     for batch in dataloader:
@@ -140,6 +144,8 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
         logits = model(inputs, targets[:, :-1], lengths)
         loss = criterion(logits.view(-1, logits.size(-1)), targets[:, 1:].contiguous().view(-1))
         loss.backward()
+        if grad_clip:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
         with torch.no_grad():
             hit_rate = compute_hit_rate(logits, targets[:, 1:], pad_idx)
@@ -203,14 +209,30 @@ def main():
     model = model.to(device)
     print(f"Model: transformer, params={sum(p.numel() for p in model.parameters()):,}")
     print(f"  num_heads={NUM_HEADS}, num_layers={NUM_LAYERS}, dropout={DROPOUT}")
+    print(f"  batch_size={BATCH_SIZE}, lr={LR}, weight_decay={WEIGHT_DECAY}, grad_clip={GRAD_CLIP}")
+    print(f"  lr_scheduler={LR_SCHEDULER}")
 
     criterion = nn.CrossEntropyLoss(ignore_index=output_vocab['<pad>'])
-    optimizer = optim.Adam(model.parameters(), lr=LR)
+    optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+
+    if LR_SCHEDULER == 'cosine':
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+    elif LR_SCHEDULER == 'plateau':
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
+    else:
+        scheduler = None
 
     best_val_hit_rate = 0
     for epoch in range(EPOCHS):
-        train_loss, train_hit_rate = train_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_hit_rate = eval_epoch(model, val_loader, criterion, device)
+        train_loss, train_hit_rate = train_epoch(model, train_loader, criterion, optimizer, device,
+                                                  pad_idx=output_vocab['<pad>'], grad_clip=GRAD_CLIP if GRAD_CLIP else None)
+        val_loss, val_hit_rate = eval_epoch(model, val_loader, criterion, device, pad_idx=output_vocab['<pad>'])
+
+        if scheduler is not None:
+            if LR_SCHEDULER == 'cosine':
+                scheduler.step()
+            elif LR_SCHEDULER == 'plateau':
+                scheduler.step(val_hit_rate)
 
         if val_hit_rate > best_val_hit_rate:
             best_val_hit_rate = val_hit_rate
