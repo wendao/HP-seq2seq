@@ -23,7 +23,7 @@ BATCH_SIZE = 64
 LR = 0.001
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP = 1.0
-LR_SCHEDULER = 'cosine'  # 'none', 'cosine', 'plateau'
+LR_SCHEDULER = "warmup"  # 'none', 'cosine', 'plateau'
 EPOCHS = 50
 
 # ============ Fixed hyperparameters ============
@@ -219,6 +219,14 @@ def main():
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
     elif LR_SCHEDULER == 'plateau':
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
+    elif LR_SCHEDULER == 'warmup':
+        def lr_lambda(epoch):
+            if epoch < 5:
+                return 0.1 + 0.9 * epoch / 5
+            else:
+                progress = (epoch - 5) / (EPOCHS - 5)
+                return 0.5 * (1 + math.cos(math.pi * progress))
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
     else:
         scheduler = None
 
@@ -229,7 +237,7 @@ def main():
         val_loss, val_hit_rate = eval_epoch(model, val_loader, criterion, device, pad_idx=output_vocab['<pad>'])
 
         if scheduler is not None:
-            if LR_SCHEDULER == 'cosine':
+            if LR_SCHEDULER in ('cosine', 'warmup'):
                 scheduler.step()
             elif LR_SCHEDULER == 'plateau':
                 scheduler.step(val_hit_rate)
