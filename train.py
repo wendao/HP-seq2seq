@@ -14,7 +14,7 @@ import prepare
 
 # ============ Tunable hyperparameters ============
 
-HIDDEN_SIZE = 256
+HIDDEN_SIZE = 512
 EMBED_DIM = 64
 NUM_LAYERS = 4
 NUM_HEADS = 4
