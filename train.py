@@ -225,7 +225,7 @@ def main():
                 return 0.1 + 0.9 * epoch / 5
             else:
                 progress = (epoch - 5) / (EPOCHS - 5)
-                return 0.5 * (1 + math.cos(math.pi * progress))
+                return 0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * progress))
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
     else:
         scheduler = None
