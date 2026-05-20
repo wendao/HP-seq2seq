@@ -62,7 +62,7 @@ class EncoderTransformer(nn.Module):
         self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
-            batch_first=True, dropout=dropout
+            batch_first=True, dropout=dropout, norm_first=True
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 
@@ -85,7 +85,7 @@ class DecoderTransformer(nn.Module):
         self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
-            batch_first=True, dropout=dropout
+            batch_first=True, dropout=dropout, norm_first=True
         )
         self.transformer = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
         self.output_proj = nn.Linear(embed_dim, output_vocab_size)
