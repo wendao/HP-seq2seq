@@ -1,0 +1,28 @@
+commit	val_bpb	memory_gb	status	description
+6af4318	0.2654	0.0	keep	baseline: HIDDEN_SIZE=128 EMBED_DIM=64 NUM_LAYERS=3 NUM_HEADS=4 DROPOUT=0.1
+8cd5dc5	0.3153	0.0	keep	HIDDEN_SIZE=256
+f22000d	0.3280	0.0	keep	NUM_LAYERS=4
+eb57cc3	0.3702	0.0	keep	HIDDEN_SIZE=512
+30798ac	0.4032	0.0	keep	EMBED_DIM=96
+735a00e	0.2971	0.0	discard	DROPOUT=0.0
+7f3c4f7	0.3751	0.0	discard	DROPOUT=0.05
+499e6c5	0.3429	0.0	discard	DROPOUT=0.15
+8b28007	0.3651	0.0	discard	HIDDEN_SIZE=768
+3245b3f	0.3727	0.0	discard	EMBED_DIM=80
+3fc8721	0.3816	0.0	discard	NUM_HEADS=6
+b7a06fe	0.3724	0.0	discard	HIDDEN_SIZE=640
+3acc335	0.4271	0.0	discard	label smoothing 0.1
+050acfa	0.3353	0.0	discard	LR 0.0005
+872de58	0.3985	0.0	discard	BATCH_SIZE 128
+69aef32	0.4330	0.0	discard	LR 0.002
+25c7d19	0.4163	0.0	discard	AdamW betas (0.9, 0.98)
+838ecde	0.4705	0.0	keep	warmup cosine with min LR 0.1x
+9b3bde3	0.4634	0.0	keep	Pre-LN (norm_first=True) - 3-run avg, stable
+4056a99	0.4457	0.0	discard	min LR 0.2x
+df314cd	0.4418	0.0	discard	warmup 10 epochs + min LR 0.1x
+f3e41e2	0.4350	0.0	discard	warmup 3 epochs + min LR 0.1x
+0553291	0.4459	0.0	discard	grad clip 5.0
+27b6689	0.4327	0.0	discard	grad clip 0.5
+bfc12a0	0.4056	0.0	discard	weight decay 1e-5
+7f75a1e	0.4395	0.0	discard	DROPOUT 0.08
+fb40c90	0.4634	0.0	keep	Pre-LN cherry-pick (norm_first=True) on main
