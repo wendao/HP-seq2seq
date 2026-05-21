@@ -24,10 +24,10 @@ LR = 0.001
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP = 1.0
 LR_SCHEDULER = "warmup"  # 'none', 'cosine', 'plateau'
-EPOCHS = 50
 
 # ============ Fixed hyperparameters ============
 
+EPOCHS = 20
 SPLIT = 'grouped'
 FOLD = 0
 
