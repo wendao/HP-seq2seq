@@ -14,20 +14,20 @@ import prepare
 
 # ============ Tunable hyperparameters ============
 
-HIDDEN_SIZE = 512
+HIDDEN_SIZE = 1024
 EMBED_DIM = 96
 NUM_LAYERS = 4
 NUM_HEADS = 4
-DROPOUT = 0.1
-BATCH_SIZE = 64
-LR = 0.001
+DROPOUT = 0.0
+BATCH_SIZE = 32
+LR = 0.002
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP = 1.0
 LR_SCHEDULER = "warmup"  # 'none', 'cosine', 'plateau'
-EPOCHS = 50
 
 # ============ Fixed hyperparameters ============
 
+EPOCHS = 20
 SPLIT = 'grouped'
 FOLD = 0
 
