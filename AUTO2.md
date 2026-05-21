@@ -37,3 +37,4 @@ Target: maximize val hit rate.
 | 3 | 3d3d91e | 0.3706 | keep | BATCH_SIZE=32 |
 | 4 | 7d734ed | 0.4095 | keep | DROPOUT=0.05 |
 | 5 | a0d2dfb | 0.4252 | keep | DROPOUT=0 |
+| 6 | 1825b0d | 0.4441 | keep | HIDDEN_SIZE=768 |
