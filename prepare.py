@@ -2,7 +2,7 @@
 
 from typing import List, Tuple, Dict
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from collections import defaultdict
 
 
@@ -77,74 +77,42 @@ def create_grouped_folds(data, n_folds=5):
 
 
 class Seq2SeqDataset(Dataset):
-    """Dataset for seq2seq training."""
+    """Dataset for seq2seq training. Pre-tokenizes and pre-pads all data to avoid
+    per-epoch CPU overhead. Data is small enough to live entirely in CPU memory."""
 
     def __init__(self, data: List[Tuple[str, str]], input_vocab: Dict[str, int], output_vocab: Dict[str, int]):
-        self.data = data
-        self.input_vocab = input_vocab
-        self.output_vocab = output_vocab
-        self.reverse_output_vocab = {v: k for k, v in output_vocab.items()}
+        input_ids_list = []
+        output_ids_list = []
+
+        for input_seq, output_seq in data:
+            inp = [input_vocab.get(ch, input_vocab['<unk>']) for ch in input_seq]
+            out = [output_vocab['<sos>']]
+            out += [output_vocab.get(ch, output_vocab['<pad>']) for ch in output_seq]
+            out.append(output_vocab['<eos>'])
+            input_ids_list.append(torch.tensor(inp, dtype=torch.long))
+            output_ids_list.append(torch.tensor(out, dtype=torch.long))
+
+        max_input_len = max(len(x) for x in input_ids_list)
+        max_output_len = max(len(x) for x in output_ids_list)
+
+        self.inputs = torch.zeros(len(data), max_input_len, dtype=torch.long)
+        self.outputs = torch.zeros(len(data), max_output_len, dtype=torch.long)
+
+        for i, (inp, out) in enumerate(zip(input_ids_list, output_ids_list)):
+            self.inputs[i, :len(inp)] = inp
+            self.outputs[i, :len(out)] = out
 
     def __len__(self) -> int:
-        return len(self.data)
+        return len(self.inputs)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        input_seq, output_seq = self.data[idx]
-
-        # Encode input
-        input_ids = [self.input_vocab.get(ch, self.input_vocab['<unk>']) for ch in input_seq]
-
-        # Encode output: add <sos> at start, <eos> at end
-        output_ids = [self.output_vocab['<sos>']]
-        output_ids += [self.output_vocab.get(ch, self.output_vocab['<pad>']) for ch in output_seq]
-        output_ids.append(self.output_vocab['<eos>'])
-
-        return (
-            torch.tensor(input_ids, dtype=torch.long),
-            torch.tensor(output_ids, dtype=torch.long)
-        )
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self.inputs[idx], self.outputs[idx]
 
 
-def collate_fn(batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Collate function: pad sequences to same length in a batch."""
-    input_ids, output_ids = zip(*batch)
-
-    # Pad inputs
-    input_lens = [len(x) for x in input_ids]
-    max_input_len = max(input_lens)
-    padded_inputs = []
-    for inp in input_ids:
-        pad_len = max_input_len - len(inp)
-        padded_inputs.append(torch.cat([inp, torch.zeros(pad_len, dtype=torch.long)]))
-
-    # Pad outputs (teacher forcing)
-    output_lens = [len(x) for x in output_ids]
-    max_output_len = max(output_lens)
-    padded_outputs = []
-    for out in output_ids:
-        pad_len = max_output_len - len(out)
-        padded_outputs.append(torch.cat([out, torch.zeros(pad_len, dtype=torch.long)]))
-
-    # Also create target: decoder input shifted right (for loss computation)
-    # Target = output_ids[1:] with <eos> at end
-    targets = []
-    for out in output_ids:
-        # Remove <sos> from beginning, add <eos> at end
-        target = out[1:]
-        targets.append(target)
-
-    # Pad targets
-    max_target_len = max(len(t) for t in targets)
-    padded_targets = []
-    for t in targets:
-        pad_len = max_target_len - len(t)
-        padded_targets.append(torch.cat([t, torch.zeros(pad_len, dtype=torch.long)]))
-
-    return (
-        torch.stack(padded_inputs),
-        torch.stack(padded_outputs),
-        torch.stack(padded_targets)
-    )
+def collate_fn(batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Collate function: stacks pre-padded tensors. Data is already padded in Seq2SeqDataset."""
+    inputs, outputs = zip(*batch)
+    return torch.stack(inputs), torch.stack(outputs)
 
 
 def encode_data(data: List[Tuple[str, str]], input_vocab: Dict[str, int], output_vocab: Dict[str, int]) -> Dataset:

@@ -1,8 +1,5 @@
 """Seq2seq training for HP sequence -> structure mapping. Transformer model."""
 
-import os
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 import math
 import random
 import numpy as np
@@ -141,8 +138,8 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     model.train()
     total_loss, total_hit_rate, n_batches = 0, 0, 0
     for batch in dataloader:
-        inputs, targets, _ = batch
-        inputs, targets = inputs.to(device), targets.to(device)
+        inputs, targets = batch
+        inputs, targets = inputs.to(device, non_blocking=True), targets.to(device, non_blocking=True)
         lengths = (inputs != pad_idx).sum(dim=1)
         optimizer.zero_grad()
         logits = model(inputs, targets[:, :-1], lengths)
@@ -165,8 +162,8 @@ def eval_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     total_loss, total_hit_rate, n_batches = 0, 0, 0
     with torch.no_grad():
         for batch in dataloader:
-            inputs, targets, _ = batch
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = batch
+            inputs, targets = inputs.to(device, non_blocking=True), targets.to(device, non_blocking=True)
             lengths = (inputs != pad_idx).sum(dim=1)
             logits = model(inputs, targets[:, :-1], lengths)
             loss = criterion(logits.view(-1, logits.size(-1)), targets[:, 1:].contiguous().view(-1))
@@ -213,8 +210,8 @@ def main():
     train_dataset = prepare.Seq2SeqDataset(train_data, input_vocab, output_vocab)
     val_dataset = prepare.Seq2SeqDataset(val_data, input_vocab, output_vocab)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=prepare.collate_fn)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=prepare.collate_fn)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=prepare.collate_fn, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=prepare.collate_fn, pin_memory=True)
 
     input_vocab_size = len(input_vocab)
     output_vocab_size = len(output_vocab)
