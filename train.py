@@ -4,6 +4,8 @@ import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 import math
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,6 +13,8 @@ from torch.utils.data import DataLoader
 from typing import Tuple
 
 import prepare
+
+SEED = 42
 
 # ============ Tunable hyperparameters ============
 
@@ -173,7 +177,18 @@ def eval_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     return total_loss / n_batches, total_hit_rate / n_batches
 
 
+def set_seed(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
 def main():
+    set_seed(SEED)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
