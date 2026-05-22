@@ -245,6 +245,7 @@ def main():
     else:
         scheduler = None
 
+    best_score = -float('inf')
     best_val_hit_rate = 0
     for epoch in range(EPOCHS):
         train_loss, train_hit_rate = train_epoch(model, train_loader, criterion, optimizer, device,
@@ -257,14 +258,18 @@ def main():
             elif LR_SCHEDULER == 'plateau':
                 scheduler.step(val_hit_rate)
 
-        if val_hit_rate > best_val_hit_rate:
+        score = val_hit_rate - 0.5 * train_hit_rate
+        if score > best_score:
+            best_score = score
             best_val_hit_rate = val_hit_rate
 
         print(f"Epoch {epoch+1}/{EPOCHS} | "
               f"Train Loss: {train_loss:.4f}, Hit Rate: {train_hit_rate:.4f} | "
-              f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f}")
+              f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f} | "
+              f"Score: {score:.4f}")
 
     print(f"\nBest validation hit rate: {best_val_hit_rate:.4f}")
+    print(f"Best score (val - 0.5*train): {best_score:.4f}")
 
 
 if __name__ == '__main__':
