@@ -1,9 +1,8 @@
 """Seq2seq training for HP sequence -> structure mapping. Transformer model."""
 
-import os
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 import math
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,22 +11,24 @@ from typing import Tuple
 
 import prepare
 
+SEED = 42
+
 # ============ Tunable hyperparameters ============
 
-HIDDEN_SIZE = 1024
+HIDDEN_SIZE = 512
 EMBED_DIM = 96
 NUM_LAYERS = 4
 NUM_HEADS = 4
-DROPOUT = 0.0
-BATCH_SIZE = 32
-LR = 0.002
+DROPOUT = 0.1
+BATCH_SIZE = 64
+LR = 0.001
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP = 1.0
 LR_SCHEDULER = "warmup"  # 'none', 'cosine', 'plateau'
+EPOCHS = 50
 
 # ============ Fixed hyperparameters ============
 
-EPOCHS = 20
 SPLIT = 'grouped'
 FOLD = 0
 
@@ -62,7 +63,7 @@ class EncoderTransformer(nn.Module):
         self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
-            batch_first=True, dropout=dropout, norm_first=True
+            batch_first=True, dropout=dropout
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 
@@ -85,7 +86,7 @@ class DecoderTransformer(nn.Module):
         self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
-            batch_first=True, dropout=dropout, norm_first=True
+            batch_first=True, dropout=dropout
         )
         self.transformer = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
         self.output_proj = nn.Linear(embed_dim, output_vocab_size)
@@ -137,8 +138,8 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     model.train()
     total_loss, total_hit_rate, n_batches = 0, 0, 0
     for batch in dataloader:
-        inputs, targets, _ = batch
-        inputs, targets = inputs.to(device), targets.to(device)
+        inputs, targets = batch
+        inputs, targets = inputs.to(device, non_blocking=True), targets.to(device, non_blocking=True)
         lengths = (inputs != pad_idx).sum(dim=1)
         optimizer.zero_grad()
         logits = model(inputs, targets[:, :-1], lengths)
@@ -161,8 +162,8 @@ def eval_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     total_loss, total_hit_rate, n_batches = 0, 0, 0
     with torch.no_grad():
         for batch in dataloader:
-            inputs, targets, _ = batch
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = batch
+            inputs, targets = inputs.to(device, non_blocking=True), targets.to(device, non_blocking=True)
             lengths = (inputs != pad_idx).sum(dim=1)
             logits = model(inputs, targets[:, :-1], lengths)
             loss = criterion(logits.view(-1, logits.size(-1)), targets[:, 1:].contiguous().view(-1))
@@ -173,7 +174,18 @@ def eval_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     return total_loss / n_batches, total_hit_rate / n_batches
 
 
+def set_seed(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
 def main():
+    set_seed(SEED)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
@@ -198,8 +210,8 @@ def main():
     train_dataset = prepare.Seq2SeqDataset(train_data, input_vocab, output_vocab)
     val_dataset = prepare.Seq2SeqDataset(val_data, input_vocab, output_vocab)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=prepare.collate_fn)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=prepare.collate_fn)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=prepare.collate_fn, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=prepare.collate_fn, pin_memory=True)
 
     input_vocab_size = len(input_vocab)
     output_vocab_size = len(output_vocab)
@@ -230,6 +242,7 @@ def main():
     else:
         scheduler = None
 
+    best_score = -float('inf')
     best_val_hit_rate = 0
     for epoch in range(EPOCHS):
         train_loss, train_hit_rate = train_epoch(model, train_loader, criterion, optimizer, device,
@@ -242,14 +255,18 @@ def main():
             elif LR_SCHEDULER == 'plateau':
                 scheduler.step(val_hit_rate)
 
-        if val_hit_rate > best_val_hit_rate:
+        score = val_hit_rate - 0.5 * train_hit_rate
+        if score > best_score:
+            best_score = score
             best_val_hit_rate = val_hit_rate
 
         print(f"Epoch {epoch+1}/{EPOCHS} | "
               f"Train Loss: {train_loss:.4f}, Hit Rate: {train_hit_rate:.4f} | "
-              f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f}")
+              f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f} | "
+              f"Score: {score:.4f}")
 
     print(f"\nBest validation hit rate: {best_val_hit_rate:.4f}")
+    print(f"Best score (val - 0.5*train): {best_score:.4f}")
 
 
 if __name__ == '__main__':
