@@ -1,17 +1,15 @@
 """Seq2seq training for HP sequence -> structure mapping. Transformer model."""
 
+import os, sys
+#os.environ.setdefault('CUDA_LAUNCH_BLOCKING', '0')
+
 import math
-import random
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
 from typing import Tuple
 
 import prepare
-
-SEED = 42
 
 # ============ Tunable hyperparameters ============
 
@@ -25,12 +23,13 @@ LR = 0.001
 WEIGHT_DECAY = 1e-4
 GRAD_CLIP = 1.0
 LR_SCHEDULER = "warmup"  # 'none', 'cosine', 'plateau'
-EPOCHS = 50
+EPOCHS = 200
+LOAD_DATA_TO_GPU = True
 
 # ============ Fixed hyperparameters ============
 
 SPLIT = 'grouped'
-FOLD = 0
+FOLD = int(sys.argv[1])
 
 # ===============================================
 
@@ -63,7 +62,7 @@ class EncoderTransformer(nn.Module):
         self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
-            batch_first=True, dropout=dropout
+            batch_first=True, dropout=dropout, norm_first=True
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 
@@ -80,23 +79,26 @@ class DecoderTransformer(nn.Module):
     """Transformer decoder with causal self-attention and cross-attention."""
 
     def __init__(self, embed_dim: int, hidden_size: int, output_vocab_size: int,
-                 n_layers: int = 3, n_heads: int = 8, dropout: float = 0.1):
+                 n_layers: int = 3, n_heads: int = 8, dropout: float = 0.1,
+                 max_len: int = 64):
         super().__init__()
         self.embedding = nn.Embedding(output_vocab_size, embed_dim, padding_idx=0)
         self.pos_encoding = PositionalEncoding(embed_dim, dropout=dropout)
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=embed_dim, nhead=n_heads, dim_feedforward=hidden_size,
-            batch_first=True, dropout=dropout
+            batch_first=True, dropout=dropout, norm_first=True
         )
         self.transformer = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
         self.output_proj = nn.Linear(embed_dim, output_vocab_size)
+        causal_mask = torch.triu(torch.ones(max_len, max_len, dtype=torch.bool), diagonal=1)
+        self.register_buffer('causal_mask', causal_mask, persistent=False)
 
     def forward(self, encoder_output: torch.Tensor, target: torch.Tensor,
                 src_padding_mask: torch.Tensor = None) -> torch.Tensor:
         tgt_len = target.size(1)
         embedded = self.embedding(target)
         embedded = self.pos_encoding(embedded)
-        tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt_len).to(target.device)
+        tgt_mask = self.causal_mask[:tgt_len, :tgt_len]
         tgt_key_padding_mask = (target == 0)
         output = self.transformer(
             embedded, encoder_output,
@@ -123,25 +125,62 @@ class Seq2SeqTransformer(nn.Module):
         return logits
 
 
-def compute_hit_rate(logits: torch.Tensor, targets: torch.Tensor, pad_idx: int = 0) -> float:
+def compute_hit_rate(logits: torch.Tensor, targets: torch.Tensor, pad_idx: int = 0) -> torch.Tensor:
     """Compute exact match accuracy (hit rate)."""
     predictions = logits.argmax(dim=-1)
     mask = (targets != pad_idx)
     correct = (predictions == targets) & mask
     exact_match = correct.all(dim=1)
-    return exact_match.float().mean().item()
+    return exact_match.float().mean()
 
 
-def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
-                optimizer: optim.Optimizer, device: torch.device, pad_idx: int = 0,
+def encode_tensors(data, input_vocab, output_vocab, device: torch.device,
+                   pad_idx: int = 0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Encode fixed-length HP data once and keep it on the target device."""
+    input_rows = []
+    output_rows = []
+    for input_seq, output_seq in data:
+        input_rows.append([input_vocab.get(ch, input_vocab['<unk>']) for ch in input_seq])
+        output_rows.append(
+            [output_vocab['<sos>']]
+            + [output_vocab.get(ch, pad_idx) for ch in output_seq]
+            + [output_vocab['<eos>']]
+        )
+
+    inputs = torch.tensor(input_rows, dtype=torch.long, device=device)
+    outputs = torch.tensor(output_rows, dtype=torch.long, device=device)
+    lengths = (inputs != pad_idx).sum(dim=1)
+    return inputs, outputs, lengths
+
+
+def iter_tensor_batches(inputs: torch.Tensor, outputs: torch.Tensor, lengths: torch.Tensor,
+                        batch_size: int, shuffle: bool):
+    n_samples = inputs.size(0)
+    if shuffle:
+        indices = torch.randperm(n_samples, device=inputs.device)
+    else:
+        indices = torch.arange(n_samples, device=inputs.device)
+
+    for start in range(0, n_samples, batch_size):
+        batch_idx = indices[start:start + batch_size]
+        yield (
+            inputs.index_select(0, batch_idx),
+            outputs.index_select(0, batch_idx),
+            lengths.index_select(0, batch_idx),
+        )
+
+
+def train_epoch(model: nn.Module, tensors: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], criterion: nn.Module,
+                optimizer: optim.Optimizer, batch_size: int, pad_idx: int = 0,
                 grad_clip: float = None) -> Tuple[float, float]:
     model.train()
-    total_loss, total_hit_rate, n_batches = 0, 0, 0
-    for batch in dataloader:
-        inputs, targets = batch
-        inputs, targets = inputs.to(device, non_blocking=True), targets.to(device, non_blocking=True)
-        lengths = (inputs != pad_idx).sum(dim=1)
-        optimizer.zero_grad()
+    inputs_all, targets_all, lengths_all = tensors
+    total_loss = torch.zeros((), device=inputs_all.device)
+    total_hit_rate = torch.zeros((), device=inputs_all.device)
+    n_batches = 0
+    for inputs, targets, lengths in iter_tensor_batches(inputs_all, targets_all, lengths_all,
+                                                        batch_size, shuffle=True):
+        optimizer.zero_grad(set_to_none=True)
         logits = model(inputs, targets[:, :-1], lengths)
         loss = criterion(logits.view(-1, logits.size(-1)), targets[:, 1:].contiguous().view(-1))
         loss.backward()
@@ -150,43 +189,35 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
         optimizer.step()
         with torch.no_grad():
             hit_rate = compute_hit_rate(logits, targets[:, 1:], pad_idx)
-        total_loss += loss.item()
+        total_loss += loss.detach()
         total_hit_rate += hit_rate
         n_batches += 1
-    return total_loss / n_batches, total_hit_rate / n_batches
+    return (total_loss / n_batches).item(), (total_hit_rate / n_batches).item()
 
 
-def eval_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
-               device: torch.device, pad_idx: int = 0) -> Tuple[float, float]:
+def eval_epoch(model: nn.Module, tensors: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], criterion: nn.Module,
+               batch_size: int, pad_idx: int = 0) -> Tuple[float, float]:
     model.eval()
-    total_loss, total_hit_rate, n_batches = 0, 0, 0
+    inputs_all, targets_all, lengths_all = tensors
+    total_loss = torch.zeros((), device=inputs_all.device)
+    total_hit_rate = torch.zeros((), device=inputs_all.device)
+    n_batches = 0
     with torch.no_grad():
-        for batch in dataloader:
-            inputs, targets = batch
-            inputs, targets = inputs.to(device, non_blocking=True), targets.to(device, non_blocking=True)
-            lengths = (inputs != pad_idx).sum(dim=1)
+        for inputs, targets, lengths in iter_tensor_batches(inputs_all, targets_all, lengths_all,
+                                                            batch_size, shuffle=False):
             logits = model(inputs, targets[:, :-1], lengths)
             loss = criterion(logits.view(-1, logits.size(-1)), targets[:, 1:].contiguous().view(-1))
             hit_rate = compute_hit_rate(logits, targets[:, 1:], pad_idx)
-            total_loss += loss.item()
+            total_loss += loss.detach()
             total_hit_rate += hit_rate
             n_batches += 1
-    return total_loss / n_batches, total_hit_rate / n_batches
-
-
-def set_seed(seed: int = 42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+    return (total_loss / n_batches).item(), (total_hit_rate / n_batches).item()
 
 
 def main():
-    set_seed(SEED)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if device.type == 'cuda' and hasattr(torch, 'set_float32_matmul_precision'):
+        torch.set_float32_matmul_precision('high')
     print(f"Using device: {device}")
 
     data = prepare.load_data('datasets/dataset20int')
@@ -207,11 +238,13 @@ def main():
     train_data = [data[i] for i in train_idx]
     val_data = [data[i] for i in val_idx]
 
-    train_dataset = prepare.Seq2SeqDataset(train_data, input_vocab, output_vocab)
-    val_dataset = prepare.Seq2SeqDataset(val_data, input_vocab, output_vocab)
-
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=prepare.collate_fn, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=prepare.collate_fn, pin_memory=True)
+    tensor_device = device if LOAD_DATA_TO_GPU else torch.device('cpu')
+    train_tensors = encode_tensors(train_data, input_vocab, output_vocab, tensor_device, pad_idx=output_vocab['<pad>'])
+    val_tensors = encode_tensors(val_data, input_vocab, output_vocab, tensor_device, pad_idx=output_vocab['<pad>'])
+    if tensor_device != device:
+        train_tensors = tuple(t.to(device) for t in train_tensors)
+        val_tensors = tuple(t.to(device) for t in val_tensors)
+    print(f"Data tensors loaded on: {train_tensors[0].device}")
 
     input_vocab_size = len(input_vocab)
     output_vocab_size = len(output_vocab)
@@ -242,12 +275,12 @@ def main():
     else:
         scheduler = None
 
-    best_score = -float('inf')
     best_val_hit_rate = 0
     for epoch in range(EPOCHS):
-        train_loss, train_hit_rate = train_epoch(model, train_loader, criterion, optimizer, device,
-                                                  pad_idx=output_vocab['<pad>'], grad_clip=GRAD_CLIP if GRAD_CLIP else None)
-        val_loss, val_hit_rate = eval_epoch(model, val_loader, criterion, device, pad_idx=output_vocab['<pad>'])
+        train_loss, train_hit_rate = train_epoch(model, train_tensors, criterion, optimizer, BATCH_SIZE,
+                                                  pad_idx=output_vocab['<pad>'],
+                                                  grad_clip=GRAD_CLIP if GRAD_CLIP else None)
+        val_loss, val_hit_rate = eval_epoch(model, val_tensors, criterion, BATCH_SIZE, pad_idx=output_vocab['<pad>'])
 
         if scheduler is not None:
             if LR_SCHEDULER in ('cosine', 'warmup'):
@@ -255,18 +288,14 @@ def main():
             elif LR_SCHEDULER == 'plateau':
                 scheduler.step(val_hit_rate)
 
-        score = val_hit_rate - 0.5 * train_hit_rate
-        if score > best_score:
-            best_score = score
+        if val_hit_rate > best_val_hit_rate:
             best_val_hit_rate = val_hit_rate
 
         print(f"Epoch {epoch+1}/{EPOCHS} | "
               f"Train Loss: {train_loss:.4f}, Hit Rate: {train_hit_rate:.4f} | "
-              f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f} | "
-              f"Score: {score:.4f}")
+              f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f}")
 
     print(f"\nBest validation hit rate: {best_val_hit_rate:.4f}")
-    print(f"Best score (val - 0.5*train): {best_score:.4f}")
 
 
 if __name__ == '__main__':
