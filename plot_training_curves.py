@@ -77,6 +77,8 @@ ax.fill_between(epochs, train_loss_mean - train_loss_std, train_loss_mean + trai
 ax.fill_between(epochs, val_loss_mean - val_loss_std, val_loss_mean + val_loss_std, alpha=0.2, color='red')
 ax.set_xlabel('Epoch')
 ax.set_ylabel('Loss')
+ax.set_xscale('log')
+ax.set_yscale('log')
 ax.set_title(f'{job.upper()} Loss ({len(all_data)}-fold mean ± std)')
 ax.legend()
 ax.grid(True, alpha=0.3)
