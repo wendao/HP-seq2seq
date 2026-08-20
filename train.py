@@ -4,6 +4,7 @@ import os, sys
 #os.environ.setdefault('CUDA_LAUNCH_BLOCKING', '0')
 
 import math
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -29,9 +30,38 @@ LOAD_DATA_TO_GPU = True
 # ============ Fixed hyperparameters ============
 
 SPLIT = 'grouped'
-FOLD = int(sys.argv[1])
+FOLD = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+SEED = 42
 
 # ===============================================
+
+
+def select_device() -> torch.device:
+    """Prefer CUDA, then Apple Metal (MPS), then CPU."""
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    mps = getattr(torch.backends, 'mps', None)
+    if mps is not None and mps.is_available() and mps.is_built():
+        return torch.device('mps')
+    return torch.device('cpu')
+
+
+def set_seed(seed: int) -> None:
+    """Seed every RNG that affects training.
+
+    Covers CPU, CUDA and MPS. cuDNN determinism is CUDA-only and costs speed,
+    so it is left off; on MPS the seeded global generator is what drives the
+    shuffling in iter_tensor_batches.
+    """
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    if hasattr(torch, 'mps') and hasattr(torch.mps, 'manual_seed'):
+        try:
+            torch.mps.manual_seed(seed)
+        except Exception:
+            pass
 
 
 class PositionalEncoding(nn.Module):
@@ -215,15 +245,11 @@ def eval_epoch(model: nn.Module, tensors: Tuple[torch.Tensor, torch.Tensor, torc
 
 
 def main():
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-    elif torch.backends.mps.is_available():
-        device = torch.device('mps')
-    else:
-        device = torch.device('cpu')
+    set_seed(SEED)
+    device = select_device()
     if device.type == 'cuda' and hasattr(torch, 'set_float32_matmul_precision'):
         torch.set_float32_matmul_precision('high')
-    print(f"Using device: {device}")
+    print(f"Using device: {device} | seed={SEED}")
 
     data = prepare.load_data('datasets/dataset20int')
     print(f"Loaded {len(data)} samples")
@@ -280,7 +306,9 @@ def main():
     else:
         scheduler = None
 
-    best_val_hit_rate = 0
+    best_val_hit_rate = 0.0
+    best_train_hit_rate = 0.0
+    best_epoch = 0
     for epoch in range(EPOCHS):
         train_loss, train_hit_rate = train_epoch(model, train_tensors, criterion, optimizer, BATCH_SIZE,
                                                   pad_idx=output_vocab['<pad>'],
@@ -295,12 +323,16 @@ def main():
 
         if val_hit_rate > best_val_hit_rate:
             best_val_hit_rate = val_hit_rate
+            best_train_hit_rate = train_hit_rate
+            best_epoch = epoch + 1
 
         print(f"Epoch {epoch+1}/{EPOCHS} | "
               f"Train Loss: {train_loss:.4f}, Hit Rate: {train_hit_rate:.4f} | "
               f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f}")
 
     print(f"\nBest validation hit rate: {best_val_hit_rate:.4f}")
+    print(f"Train hit rate at best epoch: {best_train_hit_rate:.4f} (epoch {best_epoch}/{EPOCHS})")
+    print(f"Score (val - 0.5*train): {best_val_hit_rate - 0.5 * best_train_hit_rate:.4f}")
 
 
 if __name__ == '__main__':
