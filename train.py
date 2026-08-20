@@ -215,7 +215,12 @@ def eval_epoch(model: nn.Module, tensors: Tuple[torch.Tensor, torch.Tensor, torc
 
 
 def main():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
     if device.type == 'cuda' and hasattr(torch, 'set_float32_matmul_precision'):
         torch.set_float32_matmul_precision('high')
     print(f"Using device: {device}")
