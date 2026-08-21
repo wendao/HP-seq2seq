@@ -132,11 +132,13 @@ by roughly a factor of four between the two. `GROUPS.md` holds the comparison ta
   Fold-to-fold std is now ≤ 0.0172 across all twelve configurations, so a 5-fold mean
   needs no repeats.
 
-- **The transformer baseline is undertrained, not broken.** `--model transformer` scores
-  0.0961 random / 0.0881 grouped. It is the only model whose train hit rate (0.0313) is
-  *below* its val (0.0881); its loss was still falling at epoch 100 and its best epoch was
-  93/100. At 21,894 params against `train.py`'s 1,243,654, with Post-LN and no LR
-  schedule, it is not a fair transformer row — do not quote it as "how transformers do."
+- **The transformer is not in the baseline matrix.** At baseline settings (1 layer,
+  21,894 params, plain Adam, no schedule, 100 epochs) it does not converge — loss still
+  falling at the last epoch, and the only model whose train hit rate lands *below* its
+  val. Its logs were removed. `--model transformer` still works; give it a schedule and
+  `EPOCHS=400` if you run it. **No controlled architecture comparison exists**: the
+  0.5995 from `train.py` has 3× the parameters of LSTM+CA, 2× the epochs, and a tuned
+  schedule. Do not write "transformers beat LSTM here" — that experiment was never run.
 
 - **`logs/lstm_3.log`, `logs/lstm_4.log`, `logs/rnn_2.log`, `logs/rnn_3.log`, `logs/rnn_4.log` are from a different architecture.**
   Their parameter counts (LSTM 496,774, RNN 150,406) are unreachable from this file's

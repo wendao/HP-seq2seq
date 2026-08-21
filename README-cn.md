@@ -170,20 +170,21 @@ cross-attention。当前配置下 1,243,654 个参数。
 LSTM（0.1053）基本打平，两个 CNN 变体都塌到 0.03 附近——与裸 RNN 同一档。CNN 在随机
 划分拿到的那 0.126，绝大部分是背下来的输出结构。
 
-### Transformer 基线是欠训，不是坏了
+### 为什么 Transformer 不在基线矩阵里
 
-`train_baseline.py --model transformer` 得到 0.0961（随机）/ 0.0881（分组），比 CNN
-还低。诊断的关键是 train 减 val 这一列：其他模型全部过拟合（LSTM+CA 把训练集背到
-1.0000），只有 transformer 基线**train（0.0313）低于 val（0.0881）**。它的 loss 到第
-100 轮仍在单调下降，最优轮次是 93/100——是在爬坡途中被叫停的。
+`train_baseline.py` 仍然支持 `--model transformer`，但它已从默认矩阵和上面所有表格中
+排除。在基线设置下——1 层、21,894 参数、朴素 Adam、无学习率调度、100 轮——它跑不到
+收敛：loss 到最后一轮仍在单调下降，而且它是唯一一个 train hit rate **低于** val 的
+模型，这正是"还没拟合训练集"的特征。在这里量到的分数反映的是训练预算而非架构，放进
+六行已收敛的结果旁边会产生误导。
 
-这也解释了它为什么从随机到分组几乎不掉：两种划分的差距**就是**记忆的部分，而这个模型
-还什么都没记住。
+真要跑，就给它调度器和足够的轮数：
+`MODELS=transformer EPOCHS=400 bash run_baseline.sh`。若只是想要这个任务上的
+Transformer 结果，用 `train.py` / `run_transformer.sh`。
 
-它与 `train.py` 是同一套架构——同样的位置编码、同样的因果掩码、同样的编码器/解码器
-结构——但参数量只有 1/57（21,894 对 1,243,654），用 Post-LN 而非 Pre-LN，用无调度的
-朴素 Adam 而非 AdamW + warmup/cosine，轮数也只有一半。它不构成一个公平的 Transformer
-对照行，详见 `GROUPS.md`。
+**目前还不存在一次受控的架构对比。** `train.py` 的 0.5995 来自一个参数量是 LSTM+CA
+三倍、轮数翻倍、且调过调度器的模型。"这个任务上最好的结果由 transformer 取得"成立；
+"transformer 架构在同等预算下优于 LSTM"不成立——这个实验从没人跑过。
 
 ## 基线的状态
 

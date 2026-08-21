@@ -1,9 +1,15 @@
 #!/bin/bash
 # Baseline 5-fold CV for train_baseline.py.
 #
-# Default matrix: {rnn, lstm, cnn, transformer} x {random, grouped} x {no-CA, CA} x 5 folds
-# = 70 runs (the transformer skips the CA axis - its decoder has cross-attention built in).
-# Measured on M-series MPS at 100 epochs: RNN ~415s/run, RNN+CA ~457s, full matrix ~9.5h.
+# Default matrix: {rnn, lstm, cnn} x {random, grouped} x {no-CA, CA} x 5 folds = 60 runs.
+# Measured on M-series MPS at 100 epochs: RNN ~415s/run, RNN+CA ~457s, full matrix ~8h.
+#
+# The transformer is deliberately NOT in the default matrix. train_baseline.py still
+# supports --model transformer, but at these settings (1 layer, plain Adam, no LR
+# schedule, 100 epochs) it does not reach convergence, so its score measures the
+# training budget rather than the architecture. Run it only with a schedule and enough
+# epochs to converge:  MODELS=transformer EPOCHS=400 bash run_baseline.sh
+# For a transformer result on this task, use train.py / run_transformer.sh instead.
 #
 #   bash run_baseline.sh                                  # everything
 #   MODELS="lstm rnn" SPLITS=grouped CA=0 bash run_baseline.sh
@@ -14,7 +20,7 @@
 
 set -u
 
-MODELS=${MODELS:-"rnn lstm cnn transformer"}
+MODELS=${MODELS:-"rnn lstm cnn"}
 SPLITS=${SPLITS:-"random grouped"}
 CA=${CA:-"0 8"}
 FOLDS=${FOLDS:-"0 1 2 3 4"}

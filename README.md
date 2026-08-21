@@ -182,23 +182,24 @@ The ranking changes between splits. Random: LSTM > RNN > CNN. Grouped: RNN+CA
 the same band as the bare RNN. Most of the CNN's 0.126 on the random split was
 memorised output structure.
 
-### The transformer baseline is undertrained, not broken
+### Why the transformer is not in the baseline matrix
 
-`train_baseline.py --model transformer` scores 0.0961 random / 0.0881 grouped,
-below even the CNN. The diagnostic is the train-minus-val column: every other
-model overfits (LSTM+CA memorises the training set to 1.0000), while the
-transformer baseline is the only one where **train (0.0313) is below val
-(0.0881)**. Its loss was still falling monotonically at epoch 100 and its best
-epoch was 93/100 — it was stopped mid-climb.
+`train_baseline.py` still supports `--model transformer`, but it is excluded from the
+default matrix and from every table above. At the baseline settings — 1 layer, 21,894
+parameters, plain Adam with no LR schedule, 100 epochs — it does not reach convergence:
+its loss was still falling monotonically at the last epoch, and it was the only model
+whose train hit rate came in *below* its val hit rate, the signature of a model that has
+not yet fit its training data. A score measured there reports the training budget, not
+the architecture, so it would be misleading beside the six converged rows.
 
-That also explains why it barely drops from random to grouped: the gap between
-the splits *is* memorisation, and this model had not memorised anything yet.
+To run one, give it a schedule and enough epochs to converge:
+`MODELS=transformer EPOCHS=400 bash run_baseline.sh`. For a transformer result on this
+task as it stands, use `train.py` / `run_transformer.sh`.
 
-It is the same architecture as `train.py` — same positional encoding, same
-causal mask, same encoder/decoder structure — at 1/57th the parameters
-(21,894 vs 1,243,654), Post-LN instead of Pre-LN, plain Adam with no schedule
-instead of AdamW + warmup/cosine, and half the epochs. Not a fair transformer
-row; see `GROUPS.md`.
+**No controlled architecture comparison exists yet.** The 0.5995 from `train.py` comes
+from a model with 3× the parameters of LSTM+CA, twice the epochs, and a tuned schedule.
+"A transformer produced the best result on this task" is supported; "the transformer
+architecture beats LSTM at equal budget" is not — nobody has run that experiment.
 
 ## State of the baselines
 
