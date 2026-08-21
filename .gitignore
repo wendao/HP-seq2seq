@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Local experiment tracker — PROGRAM.md says do not commit this
+results.tsv
+
+# Scratch output of a single run; the kept runs live in logs/ and logs_trf/
+run.log
+
+# Local tool settings
+.claude/
+
+# macOS
+.DS_Store
