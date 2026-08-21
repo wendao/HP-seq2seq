@@ -1,7 +1,8 @@
 # HP-seq2seq 自主研究规则
 
 Seq2seq Transformer 在 HP 序列→结构映射任务上的自动优化。
-本文件由原 `PROGRAM.md` 与 `PROG.md` 合并而成（两者内容近乎重复，仅优化目标口径不同）。
+本文件由原 `PROGRAM.md` 与近乎重复的 `PROG.md` 合并而成（两者仅优化目标口径不同）。
+`PROG.md` 已删除，仓库中不再存在。
 
 ## 编辑范围
 

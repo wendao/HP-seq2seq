@@ -52,7 +52,8 @@ python plot_training_curves.py <job>    # training curves from {job}_{fold}.log
   `commit  val_hit_rate  train_hit_rate  score  memory_gb  status  description`.
 
 Documentation: `README.md` / `README-cn.md` are current. `PROGRAM.md` holds the
-autoresearch rules (merged from the old `PROGRAM.md` + `PROG.md`). `EXP.md`,
+autoresearch rules (merged from the old `PROGRAM.md` and a near-duplicate
+`PROG.md`, since removed). `EXP.md`,
 `AUTO.md`, `AUTO2.md` are historical rounds — their conclusions are budget-specific,
 see below. `GROUPS.md` covers the split analysis.
 
@@ -112,7 +113,7 @@ by roughly a factor of four between the two. `GROUPS.md` holds the comparison ta
   induction and verified empirically (418 vs 418 matches, zero disagreements over
   4,980 samples). Do not "fix" the evaluation by adding greedy decoding — it cannot
   change this metric. Beam search is a different story and is not implemented.
-  Five logs (`logs/lstm_3`, `lstm_4`, `rnn_2`, `rnn_3`, `rnn_4`) report an
+  Five logs (`logs/lstm_3.log`, `logs/lstm_4.log`, `logs/rnn_2.log`, `logs/rnn_3.log`, `logs/rnn_4.log`) report an
   autoregressive hit rate of 0.0000 next to a teacher-forced 0.20-0.41; that is a bug
   in a lost, uncommitted script version, and those logs are also at a different model
   size than folds 0-2, so they are not comparable.
@@ -137,7 +138,7 @@ by roughly a factor of four between the two. `GROUPS.md` holds the comparison ta
   93/100. At 21,894 params against `train.py`'s 1,243,654, with Post-LN and no LR
   schedule, it is not a fair transformer row — do not quote it as "how transformers do."
 
-- **`logs/lstm_3`, `lstm_4`, `rnn_2`, `rnn_3`, `rnn_4` are from a different architecture.**
+- **`logs/lstm_3.log`, `logs/lstm_4.log`, `logs/rnn_2.log`, `logs/rnn_3.log`, `logs/rnn_4.log` are from a different architecture.**
   Their parameter counts (LSTM 496,774, RNN 150,406) are unreachable from this file's
   models by any `--num_layers` / `--hidden_size` / `--embed_dim` combination. Excluded
   from every table.

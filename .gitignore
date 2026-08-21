@@ -13,3 +13,7 @@ run.log
 
 # macOS
 .DS_Store
+
+#logs
+logs/
+logs_trf/

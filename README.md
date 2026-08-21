@@ -42,10 +42,15 @@ grep "Best validation hit rate" run.log
 # Transformer, all 5 folds + summary (mean / std)
 bash run_transformer.sh
 
-# Baselines
-python train_baseline.py --model lstm --fold 0 --epochs 100 \
+# Baselines. --split defaults to random; --seed defaults to 42.
+python train_baseline.py --model lstm --split grouped --fold 0 --epochs 100 \
     --num_layers 1 --hidden_size 128 --embed_dim 64 --cross_attn 8
+
+# Full matrix: 70 runs (the transformer skips the CA axis), ~10h at 100 epochs on MPS.
+# Or take a slice:
 bash run_baseline.sh
+MODELS="lstm rnn" SPLITS=grouped CA=0 bash run_baseline.sh
+FOLDS=0 EPOCHS=20 bash run_baseline.sh
 
 # Data sanity check
 python prepare.py
@@ -98,48 +103,145 @@ completely between the two.
 
 ### Transformer, grouped split (current configuration)
 
-5 folds, `EPOCHS=200`, source `extra_logs/trf_grp_*.log`:
+5 folds, `EPOCHS=200`, seed 42, MPS. Source `logs_trf/trf_grp_*.log`:
 
 | Fold | 0 | 1 | 2 | 3 | 4 | **mean** |
 |---|---|---|---|---|---|---|
-| val hit rate | 0.6204 | 0.6140 | 0.5514 | 0.6001 | 0.6102 | **0.5992** |
-| train hit rate at best epoch | 0.8883 | 0.8870 | 0.8753 | 0.9056 | 0.8875 | 0.8887 |
-| best epoch | 182 | 179 | 186 | 200 | 191 | |
+| val hit rate | 0.5922 | 0.6042 | 0.5904 | 0.5857 | 0.6248 | **0.5995** |
+| train hit rate at best epoch | 0.8911 | 0.8855 | 0.8973 | 0.9042 | 0.9059 | 0.8968 |
+| best epoch | 190 | 177 | 193 | 191 | 195 | 189 |
 
-std 0.0277, range [0.5514, 0.6204]. Fold 2 is consistently the hardest.
+std 0.0157, range [0.5857, 0.6248].
 
 The jump from the ~0.46 recorded in `AUTO.md` came almost entirely from training
 longer (50 → 200 epochs), not from further hyperparameter search — best epochs land
-at 179-200, so 50 epochs was stopping less than a third of the way in.
+at 177-195, so 50 epochs was stopping less than a third of the way in. They are
+still pressed against the 200-epoch ceiling, so the schedule may be truncating this
+run too.
+
+#### Device and seed check
+
+`extra_logs/trf_grp_*.log` holds an earlier batch of the same configuration, run on
+CUDA **before `SEED` existed**:
+
+| | 0 | 1 | 2 | 3 | 4 | mean | std |
+|---|---|---|---|---|---|---|---|
+| CUDA, unseeded | 0.6204 | 0.6140 | 0.5514 | 0.6001 | 0.6102 | 0.5992 | 0.0277 |
+| MPS, seed 42 | 0.5922 | 0.6042 | 0.5904 | 0.5857 | 0.6248 | 0.5995 | 0.0157 |
+
+The means agree to 0.0003 — switching backend and adding a seed did not move the
+result. The per-fold values do not track each other at all, though: fold 2 was the
+low outlier on CUDA (0.5514) and is mid-pack on MPS (0.5904), while fold 4 moves the
+other way. **Fold-to-fold differences here are run noise, not fold difficulty** — an
+earlier revision of this file called fold 2 "consistently the hardest" on the
+strength of one unseeded run, which the seeded batch does not support.
+
+Seeding also halved the spread (std 0.0277 → 0.0157).
 
 ### Baselines, grouped split
 
-100 epochs, `--num_layers 1 --hidden_size 128 --embed_dim 64` (CNN: 3 layers),
-source `logs/*_grp_*.log`:
+100 epochs, seed 42, MPS. `--num_layers 1 --hidden_size 128 --embed_dim 64`
+(CNN: 3 layers), source `logs/*_grouped_?.log`:
 
-| Model | 0 | 1 | 2 | 3 | 4 | **mean** |
-|---|---|---|---|---|---|---|
-| LSTM | 0.1053 | 0.1096 | 0.0959 | 0.0978 | 0.1107 | **0.1039** |
-| CNN | 0.0293 | 0.0365 | 0.0246 | 0.0273 | 0.0319 | **0.0299** |
-| RNN | 0.0290 | 0.0313 | 0.0180 | 0.0214 | 0.0266 | **0.0253** |
+| Model | 0 | 1 | 2 | 3 | 4 | **mean** | std | train@best |
+|---|---|---|---|---|---|---|---|---|
+| LSTM + cross-attn | 0.2012 | 0.1851 | 0.1739 | 0.1993 | 0.2041 | **0.1927** | 0.0128 | 1.0000 |
+| RNN + cross-attn | 0.1071 | 0.1168 | 0.1034 | 0.1049 | 0.1169 | **0.1098** | 0.0066 | 0.5600 |
+| LSTM | 0.1066 | 0.1056 | 0.0996 | 0.1022 | 0.1125 | **0.1053** | 0.0049 | 0.7302 |
+| CNN + cross-attn | 0.0331 | 0.0276 | 0.0298 | 0.0337 | 0.0392 | **0.0327** | 0.0044 | 0.1533 |
+| CNN | 0.0315 | 0.0292 | 0.0259 | 0.0224 | 0.0381 | **0.0294** | 0.0059 | 0.1467 |
+| RNN | 0.0304 | 0.0267 | 0.0170 | 0.0297 | 0.0280 | **0.0264** | 0.0054 | 0.3124 |
 
 ### Baselines, random split
 
-| Model | 0 | 1 | 2 | 3 | 4 | **mean** |
-|---|---|---|---|---|---|---|
-| LSTM + cross-attn | 0.5613 | 0.5569 | 0.5473 | 0.5509 | 0.5521 | **0.5537** |
-| LSTM | 0.4267 | 0.4427 | 0.4416 | — | — | **0.4370** (3 folds) |
-| RNN + cross-attn | 0.3459 | 0.3856 | 0.3620 | 0.3699 | 0.3570 | **0.3641** |
-| RNN | 0.2241 | 0.2487 | — | — | — | **0.2364** (2 folds) |
-| CNN + cross-attn | 0.1077 | 0.1224 | 0.1326 | 0.1401 | 0.1325 | **0.1271** |
-| CNN | 0.1053 | 0.1276 | 0.1404 | 0.1250 | 0.1243 | **0.1245** |
+Same settings, source `logs/*_random_?.log`:
 
-`logs/lstm_3`, `logs/lstm_4`, `logs/rnn_2`, `logs/rnn_3` and `logs/rnn_4` were
-produced by an **uncommitted, since-lost version** of `train_baseline.py` at a
-different model size (LSTM 496,774 vs 381,382 params; RNN 150,406 vs 108,742), so
-they are not comparable to folds 0-2 and are excluded above. Earlier revisions of
-this README averaged them in; those numbers (LSTM 0.4235, RNN 0.2143) were mixing
-two configurations.
+| Model | 0 | 1 | 2 | 3 | 4 | **mean** | std | train@best |
+|---|---|---|---|---|---|---|---|---|
+| LSTM + cross-attn | 0.5673 | 0.5795 | 0.5765 | 0.5620 | 0.5361 | **0.5643** | 0.0172 | 0.9996 |
+| LSTM | 0.4510 | 0.4374 | 0.4584 | 0.4319 | 0.4294 | **0.4416** | 0.0126 | 0.8936 |
+| RNN + cross-attn | 0.3766 | 0.3809 | 0.3727 | 0.3886 | 0.3728 | **0.3783** | 0.0067 | 0.6450 |
+| RNN | 0.2309 | 0.2333 | 0.2375 | 0.2345 | 0.2356 | **0.2344** | 0.0025 | 0.3716 |
+| CNN + cross-attn | 0.1321 | 0.1237 | 0.1354 | 0.1197 | 0.1281 | **0.1278** | 0.0063 | 0.1559 |
+| CNN | 0.1267 | 0.1249 | 0.1185 | 0.1338 | 0.1257 | **0.1259** | 0.0055 | 0.1465 |
+
+`logs/baseline_boxplot.html` plots both tables.
+
+### What the two splits say
+
+Cross-attention is what separates the recurrent models, and its value is wildly
+uneven: RNN gains +61% on the random split (0.2344 → 0.3783), LSTM +28%, CNN
++1.5%. The CNN barely moves because `Seq2SeqCNN.forward` passes
+`encoder_embed` — the raw input embeddings, before any convolution — as the
+attention memory, while the RNN and LSTM pass `encoder_output`. Its encoder also
+max-pools 20 positions down to 1. Two bottlenecks in series; attention on the
+wrong end of them.
+
+The ranking changes between splits. Random: LSTM > RNN > CNN. Grouped: RNN+CA
+(0.1098) and LSTM (0.1053) are level, and both CNN variants collapse to ~0.03 —
+the same band as the bare RNN. Most of the CNN's 0.126 on the random split was
+memorised output structure.
+
+### The transformer baseline is undertrained, not broken
+
+`train_baseline.py --model transformer` scores 0.0961 random / 0.0881 grouped,
+below even the CNN. The diagnostic is the train-minus-val column: every other
+model overfits (LSTM+CA memorises the training set to 1.0000), while the
+transformer baseline is the only one where **train (0.0313) is below val
+(0.0881)**. Its loss was still falling monotonically at epoch 100 and its best
+epoch was 93/100 — it was stopped mid-climb.
+
+That also explains why it barely drops from random to grouped: the gap between
+the splits *is* memorisation, and this model had not memorised anything yet.
+
+It is the same architecture as `train.py` — same positional encoding, same
+causal mask, same encoder/decoder structure — at 1/57th the parameters
+(21,894 vs 1,243,654), Post-LN instead of Pre-LN, plain Adam with no schedule
+instead of AdamW + warmup/cosine, and half the epochs. Not a fair transformer
+row; see `GROUPS.md`.
+
+## State of the baselines
+
+Until 2026-08-20 the committed `train_baseline.py` had four problems:
+
+| Problem | Effect |
+|---|---|
+| `inputs, targets, _ = batch` vs a 2-tuple `collate_fn` | `ValueError` on the first batch — the script could not run at all |
+| no `--split` flag, `create_folds` hardcoded | the grouped-split baselines were impossible to produce |
+| no seed | runs not reproducible |
+| `os.environ['CUDA_LAUNCH_BLOCKING'] = '1'` at import | serialises every CUDA kernel launch; a large, silent slowdown |
+
+All four are fixed. The script takes `--split {random,grouped}` and `--seed`
+(default 42), and selects CUDA > MPS > CPU like `train.py`. The tables above are
+the full 70-run re-run on that fixed script.
+
+**The re-run reproduces the lost driver's numbers**, which retroactively validates
+the pre-fix logs in `logs/*_grp_*.log` and `logs/*_ca_*.log`:
+
+| | re-run (seed 42, MPS) | old logs | Δ |
+|---|---|---|---|
+| RNN, grouped | 0.0264 | 0.0253 | +0.0011 |
+| CNN, grouped | 0.0294 | 0.0299 | −0.0005 |
+| LSTM, grouped | 0.1053 | 0.1039 | +0.0014 |
+| CNN + CA, random | 0.1278 | 0.1271 | +0.0007 |
+| RNN + CA, random | 0.3783 | 0.3641 | +0.0142 |
+| LSTM + CA, random | 0.5643 | 0.5537 | +0.0106 |
+
+So the lost driver was functionally equivalent to the fixed one; only the code to
+reproduce it was missing.
+
+Seeding also tightened the folds. The old RNN random-split folds 0 and 1 differed
+by 0.025; the new five span 0.0025 (std). Across all twelve configurations the
+largest std is 0.0172 (LSTM+CA random) — fold-to-fold noise is now far smaller
+than any between-model difference, so a 5-fold mean is trustworthy without repeats.
+
+Two log families remain unreproducible and are excluded from every table:
+`logs/lstm_3.log`, `logs/lstm_4.log`, `logs/rnn_2.log`, `logs/rnn_3.log`, `logs/rnn_4.log` report
+parameter counts (LSTM 496,774, RNN 150,406) that **no** combination of
+`--num_layers` / `--hidden_size` / `--embed_dim` produces from the architectures in
+this file — a different architecture, not merely different hyperparameters. Those
+five also print `Autoregressive hit rate (greedy decoding): 0.0000` next to a
+teacher-forced 0.20–0.41, which the next section shows is impossible.
 
 ## On the metric
 
@@ -182,5 +284,6 @@ Device parity: fold 0 gives 0.6204 on CUDA and 0.6039 on MPS at `DROPOUT=0.1`,
 
 - Beam search at inference — the one decoding change that could actually move the metric
 - 200+ epochs: fold 3 peaked at epoch 200, so the schedule may still be truncating
-- Re-run the LSTM/RNN random-split folds that are missing, on the committed script
+- Re-run every baseline on the fixed script — `logs/` currently holds results no code
+  in this repository can reproduce
 - Transformer under the random split, for a like-for-like row in `GROUPS.md`

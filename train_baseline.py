@@ -1,10 +1,8 @@
 """Seq2seq training for HP sequence → structure mapping."""
 
-import os
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 import argparse
 import math
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -379,6 +377,29 @@ class Seq2SeqTransformer(nn.Module):
 
 # ============ Training ============
 
+def select_device() -> torch.device:
+    """Prefer CUDA, then Apple Metal (MPS), then CPU. Mirrors train.py."""
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    mps = getattr(torch.backends, 'mps', None)
+    if mps is not None and mps.is_available() and mps.is_built():
+        return torch.device('mps')
+    return torch.device('cpu')
+
+
+def set_seed(seed: int) -> None:
+    """Seed Python, CPU, CUDA and MPS. Mirrors train.py."""
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    if hasattr(torch, 'mps') and hasattr(torch.mps, 'manual_seed'):
+        try:
+            torch.mps.manual_seed(seed)
+        except Exception:
+            pass
+
+
 def compute_hit_rate(logits: torch.Tensor, targets: torch.Tensor, pad_idx: int = 0) -> float:
     """Compute exact match accuracy (hit rate)."""
     predictions = logits.argmax(dim=-1)
@@ -392,8 +413,7 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
                  optimizer: optim.Optimizer, device: torch.device, pad_idx: int = 0) -> Tuple[float, float]:
     model.train()
     total_loss, total_hit_rate, n_batches = 0, 0, 0
-    for batch in dataloader:
-        inputs, targets, _ = batch
+    for inputs, targets in dataloader:
         inputs, targets = inputs.to(device), targets.to(device)
         lengths = (inputs != pad_idx).sum(dim=1)
         optimizer.zero_grad()
@@ -414,8 +434,7 @@ def eval_epoch(model: nn.Module, dataloader: DataLoader, criterion: nn.Module,
     model.eval()
     total_loss, total_hit_rate, n_batches = 0, 0, 0
     with torch.no_grad():
-        for batch in dataloader:
-            inputs, targets, _ = batch
+        for inputs, targets in dataloader:
             inputs, targets = inputs.to(device), targets.to(device)
             lengths = (inputs != pad_idx).sum(dim=1)
             logits = model(inputs, targets[:, :-1], lengths)
@@ -440,13 +459,17 @@ def parse_args():
     parser.add_argument('--cross_attn', type=int, default=0, help='Number of cross-attention heads (0=disabled, ignored for transformer)')
     parser.add_argument('--num_heads', type=int, default=8, help='Number of attention heads (transformer only)')
     parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate (transformer only)')
+    parser.add_argument('--split', type=str, default='random', choices=['random', 'grouped'],
+                        help="'grouped' keeps samples sharing an output sequence in one fold")
+    parser.add_argument('--seed', type=int, default=42)
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    set_seed(args.seed)
+    device = select_device()
+    print(f"Using device: {device} | seed={args.seed}")
 
     data = prepare.load_data('datasets/dataset20int')
     print(f"Loaded {len(data)} samples")
@@ -456,9 +479,12 @@ def main():
     input_vocab, output_vocab = prepare.create_vocabs(input_seqs, output_seqs)
     print(f"Input vocab size: {len(input_vocab)}, Output vocab size: {len(output_vocab)}")
 
-    folds = prepare.create_folds(data, n_folds=5)
+    if args.split == 'grouped':
+        folds = prepare.create_grouped_folds(data, n_folds=5)
+    else:
+        folds = prepare.create_folds(data, n_folds=5)
     train_idx, val_idx = folds[args.fold]
-    print(f"Fold {args.fold}: train={len(train_idx)}, val={len(val_idx)}")
+    print(f"Split: {args.split} | Fold {args.fold}: train={len(train_idx)}, val={len(val_idx)}")
 
     train_data = [data[i] for i in train_idx]
     val_data = [data[i] for i in val_idx]
@@ -503,19 +529,24 @@ def main():
     criterion = nn.CrossEntropyLoss(ignore_index=output_vocab['<pad>'])
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    best_val_hit_rate = 0
+    best_val_hit_rate = 0.0
+    best_train_hit_rate = 0.0
+    best_epoch = 0
     for epoch in range(args.epochs):
         train_loss, train_hit_rate = train_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_hit_rate = eval_epoch(model, val_loader, criterion, device)
 
         if val_hit_rate > best_val_hit_rate:
             best_val_hit_rate = val_hit_rate
+            best_train_hit_rate = train_hit_rate
+            best_epoch = epoch + 1
 
         print(f"Epoch {epoch+1}/{args.epochs} | "
               f"Train Loss: {train_loss:.4f}, Hit Rate: {train_hit_rate:.4f} | "
               f"Val Loss: {val_loss:.4f}, Hit Rate: {val_hit_rate:.4f}")
 
     print(f"\nBest validation hit rate: {best_val_hit_rate:.4f}")
+    print(f"Train hit rate at best epoch: {best_train_hit_rate:.4f} (epoch {best_epoch}/{args.epochs})")
 
 
 if __name__ == '__main__':
